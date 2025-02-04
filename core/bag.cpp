@@ -2,66 +2,44 @@
 
 Bag::Bag()
 {
-    memset(this->data, true, 7);
+    this->data = 0b1111111;
 };
 
-Bag::Bag(bool init[7])
+bool Bag::get(const piece::Type& piece)
 {
-    memcpy(this->data, init, 7);
+    return this->data & (1 << static_cast<u8>(piece));
 };
 
-bool& Bag::operator [] (i32 index)
+void Bag::update(const piece::Type& next)
 {
-    return this->data[index];
-};
-
-void Bag::update(Piece::Type next)
-{
-    assert(this->data[static_cast<i8>(next)]);
-    this->data[static_cast<i8>(next)] = false;
-    if (this->data[0] == false &&
-        this->data[1] == false &&
-        this->data[2] == false &&
-        this->data[3] == false &&
-        this->data[4] == false &&
-        this->data[5] == false &&
-        this->data[6] == false) {
-        memset(this->data, true, 7);
+    this->data &= ~(1 << static_cast<u8>(next));
+    
+    if (this->data == 0) {
+        this->data = 0b1111111;
     }
 };
 
-void Bag::deupdate(Piece::Type next)
+void Bag::deupdate(const piece::Type& next)
 {
-    if (this->data[0] == true &&
-        this->data[1] == true &&
-        this->data[2] == true &&
-        this->data[3] == true &&
-        this->data[4] == true &&
-        this->data[5] == true &&
-        this->data[6] == true) {
-        memset(this->data, false, 7);
+    if (this->data == 0b1111111) {
+        this->data = 0;
     }
-    this->data[static_cast<i8>(next)] = true;
+
+    this->data |= 1 << static_cast<u8>(next);
 };
 
 i32 Bag::get_size()
 {
-    i32 result = this->data[0];
-    for (i32 i = 1; i < 7; ++i) {
-        result += this->data[i];
-    }
-    return result;
+    return std::popcount(this->data);
 };
 
 void Bag::print()
 {
-    using namespace std;
-
     for (int i = 0; i < 7; ++i) {
-        if (this->data[i]) {
-            cout << Piece::to_char(Piece::Type(i)) << " ";
+        if (this->data & (1 << i)) {
+            std::cout << piece::to_char(piece::Type(i)) << " ";
         }
     }
 
-    cout << endl;
+    std::cout << std::endl;
 };

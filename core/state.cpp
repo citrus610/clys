@@ -1,6 +1,7 @@
 #include "state.h"
 
-Lock State::advance(Piece::Data& placement, std::vector<Piece::Type>& queue)
+// Advances the game state
+Lock State::advance(move::Placement& placement, const std::vector<piece::Type>& queue)
 {
     auto current = queue[this->next];
 
@@ -8,7 +9,7 @@ Lock State::advance(Piece::Data& placement, std::vector<Piece::Type>& queue)
         auto pre_hold = this->hold;
         this->hold = current;
 
-        if (pre_hold == Piece::Type::NONE) {
+        if (pre_hold == piece::Type::NONE) {
             this->bag.update(current);
             this->next++;
             current = queue[this->next];
@@ -21,48 +22,71 @@ Lock State::advance(Piece::Data& placement, std::vector<Piece::Type>& queue)
     return this->lock(placement);
 };
 
-Lock State::lock(Piece::Data& placement)
+// Places the piece into the board and return the action's data
+Lock State::lock(move::Placement& placement)
 {
     Lock lock = Lock();
 
-    lock.softdrop = !this->board.is_above_stack(placement);
-    lock.tspin = this->board.is_tspin(placement);
+    lock.softdrop = !placement.is_above_stack(this->board);
+    lock.tspin = placement.is_tspin(this->board);
 
-    this->board.place_piece(placement);
+    placement.place(this->board);
 
-    lock.clear = this->board.clear_line();
+    lock.clear = this->board.clear();
 
     if (lock.clear > 0) {
-        this->ren++;
-
-        if (lock.tspin || lock.clear == 4) {
+        if (lock.tspin) {
+            lock.attack = lock.clear * 2;
+            this->b2b++;
+        }
+        else if (lock.clear == 4) {
+            lock.attack = 4;
             this->b2b++;
         }
         else {
+            lock.attack = lock.clear - 1;
             this->b2b = 0;
         }
 
-        lock.pc = this->board.is_perfect();
+        this->ren++;
+
+        lock.attack += this->b2b > 1;
+        lock.attack += REN_LUT[std::min(this->ren, u8(_countof(REN_LUT) - 1))];
+
+        if (this->board.is_empty()) {
+            lock.attack = 10;
+        }
     }
     else {
         this->ren = 0;
     }
 
-    this->b2b = std::min(this->b2b, 4);
+    this->b2b = std::min(this->b2b, u8(2));
 
     return lock;
 };
 
+// Hashes the state using xxh3 and return an u64
+u64 State::get_hash()
+{
+    u8 buffer[84] = { 0 };
+
+    memcpy(buffer, this->board.cols, 80);
+    buffer[80] = this->bag.data;
+    buffer[81] = static_cast<u8>(this->hold);
+    buffer[82] = this->b2b;
+    buffer[83] = this->ren;
+
+    return xxh3_64((const void*)buffer, 84);
+};
+
 void State::print()
 {
-    using namespace std;
-
-    cout << "Board:" << endl;
+    printf("Board:\n");
     this->board.print();
-    cout << "Hold:    " << Piece::to_char(this->hold) << endl;
-    cout << "Next:    " << this->next << endl;
-    cout << "Bag:     ";
     this->bag.print();
-    cout << "B2b:     " << this->b2b << endl;
-    cout << "Ren:     " << this->ren << endl;
+    printf("Hold:    %c\n", piece::to_char(this->hold));
+    printf("Next:    %d\n", this->next);
+    printf("B2b:     %d\n", this->b2b);
+    printf("Ren:     %d\n", this->ren);
 };

@@ -1,7 +1,14 @@
 #pragma once
 
+#ifdef PEXT
+#include <x86intrin.h>
+#endif
+
 #include "piece.h"
 
+// Tetris bitboard implementation
+// Board is represented as 10 columns of u64
+// We use column-major bitboard to ultilize special instructions, such as lzcnt or pext
 class Board
 {
 public:
@@ -13,18 +20,11 @@ public:
 public:
     void get_heights(i32 heights[10]);
     u64 get_clear_mask();
-    i32 get_drop_distance(Piece::Data& piece);
     i32 get_count();
 public:
-    bool is_perfect();
+    bool is_empty();
     bool is_occupied(i8 x, i8 y);
-    bool is_colliding(i8 x, i8 y, Piece::Type type, Piece::Rotation r);
-    bool is_colliding(Piece::Data& piece);
-    bool is_above_stack(Piece::Data& piece);
-    bool is_tspin(Piece::Data& piece);
 public:
-    i32 clear_line();
-    void place_piece(Piece::Data& piece);
-public:
+    i32 clear();
     void print();
 };
