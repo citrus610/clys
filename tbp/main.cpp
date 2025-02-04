@@ -3,8 +3,8 @@
 #include <array>
 
 #include "../lib/nlohmann/json.hpp"
-#include "tbp.h"
 #include "../ai/ai.h"
+#include "tbp.h"
 
 using nlohmann::json;
 using tbp::frontend::FrontendMessageKind;
@@ -18,79 +18,82 @@ void send_message(BotMessageKind kind, M message)
 	std::cout << messageJson << std::endl;
 };
 
-Piece::Type convert_piece_from_tbp(tbp::Piece piece)
+piece::Type convert_piece_from_tbp(tbp::Piece piece)
 {
     switch (piece)
     {
     case tbp::Piece::I:
-        return Piece::Type::I;
+        return piece::Type::I;
     case tbp::Piece::J:
-        return Piece::Type::J;
+        return piece::Type::J;
     case tbp::Piece::L:
-        return Piece::Type::L;
+        return piece::Type::L;
     case tbp::Piece::O:
-        return Piece::Type::O;
+        return piece::Type::O;
     case tbp::Piece::T:
-        return Piece::Type::T;
+        return piece::Type::T;
     case tbp::Piece::S:
-        return Piece::Type::S;
+        return piece::Type::S;
     case tbp::Piece::Z:
-        return Piece::Type::Z;
+        return piece::Type::Z;
     default:
-        return Piece::Type::NONE;
+        return piece::Type::NONE;
     }
-    return Piece::Type::NONE;
+    return piece::Type::NONE;
 };
 
-tbp::Piece convert_piece_to_tbp(Piece::Type piece)
+tbp::Piece convert_piece_to_tbp(piece::Type piece)
 {
     switch (piece)
     {
-    case Piece::Type::I:
+    case piece::Type::I:
         return tbp::Piece::I;
-    case Piece::Type::J:
+    case piece::Type::J:
         return tbp::Piece::J;
-    case Piece::Type::L:
+    case piece::Type::L:
         return tbp::Piece::L;
-    case Piece::Type::O:
+    case piece::Type::O:
         return tbp::Piece::O;
-    case Piece::Type::T:
+    case piece::Type::T:
         return tbp::Piece::T;
-    case Piece::Type::S:
+    case piece::Type::S:
         return tbp::Piece::S;
-    case Piece::Type::Z:
+    case piece::Type::Z:
         return tbp::Piece::Z;
+    default:
+        return tbp::Piece::I;
     }
+
     return tbp::Piece::I;
 };
 
-Piece::Rotation convert_rotation_from_tbp(tbp::Orientation rotation)
+piece::Rotation convert_rotation_from_tbp(tbp::Orientation rotation)
 {
     switch (rotation)
     {
     case tbp::Orientation::North:
-        return Piece::Rotation::UP;
+        return piece::Rotation::UP;
     case tbp::Orientation::East:
-        return Piece::Rotation::RIGHT;
+        return piece::Rotation::RIGHT;
     case tbp::Orientation::South:
-        return Piece::Rotation::DOWN;
+        return piece::Rotation::DOWN;
     case tbp::Orientation::West:
-        return Piece::Rotation::LEFT;
+        return piece::Rotation::LEFT;
     }
-    return Piece::Rotation::UP;
+    return piece::Rotation::UP;
 };
 
-tbp::Orientation convert_rotation_to_tbp(Piece::Rotation rotation)
+tbp::Orientation convert_rotation_to_tbp(piece::Rotation rotation)
 {
     switch (rotation)
     {
-    case Piece::Rotation::UP:
+    case piece::Rotation::UP:
         return tbp::Orientation::North;
-    case Piece::Rotation::RIGHT:
+    case piece::Rotation::RIGHT:
         return tbp::Orientation::East;
-    case Piece::Rotation::DOWN:
+    case piece::Rotation::DOWN:
         return tbp::Orientation::South;
-    case Piece::Rotation::LEFT:
+    case piece::Rotation::LEFT:
         return tbp::Orientation::West;
     }
     return tbp::Orientation::North;
@@ -99,19 +102,21 @@ tbp::Orientation convert_rotation_to_tbp(Piece::Rotation rotation)
 void save()
 {
     std::ifstream f("config.json");
+
     if (f.good()) {
         return;
     };
+
     f.close();
 
     std::ofstream o("config.json");
     json js;
-    to_json(js, Evaluation::DEFAULT);
+    to_json(js, eval::Weight());
     o << std::setw(4) << js << std::endl;
     o.close();
 };
 
-void load(Evaluation::Weight& w)
+void load(eval::Weight& w)
 {
     std::ifstream file;
     file.open("config.json");
@@ -125,18 +130,18 @@ int main()
 {
     tbp::bot::Info info
     {
-        .name = "mojito",
-        .version = "v0.1",
+        .name = "clys",
+        .version = "v1.5",
         .author = "citrus610",
         .features {}
     };
 
     send_message(BotMessageKind::Info, info);
 
-    AI::Engine ai = AI::Engine();
-    std::vector<Piece::Type> new_piece;
+    ai::Engine ai = ai::Engine();
+    std::vector<piece::Type> new_piece;
 
-    Evaluation::Weight w = Evaluation::DEFAULT;
+    eval::Weight w = eval::Weight();
 
     save();
     load(w);
@@ -164,7 +169,7 @@ int main()
             auto start_message = message.get<tbp::frontend::Start>();
 
             // Set queue
-            std::vector<Piece::Type> queue;
+            std::vector<piece::Type> queue;
             for (auto piece : start_message.queue) {
                 queue.push_back(convert_piece_from_tbp(piece));
             }
@@ -181,17 +186,20 @@ int main()
             }
 
             // Set hold
-            Piece::Type hold = Piece::Type::NONE;
+            piece::Type hold = piece::Type::NONE;
             if (auto message_hold = start_message.hold) {
                 hold = convert_piece_from_tbp(*message_hold);
             }
 
             // Set bag
             Bag bag;
-            memset(bag.data, false, 7 * sizeof(bool));
+
+            bag.data = 0;
+            
             for (auto piece : start_message.randomizer.bag_state) {
-                bag.data[static_cast<u8>(convert_piece_from_tbp(piece))] = true;
+                bag.data |= 1U << static_cast<u8>(convert_piece_from_tbp(piece));
             }
+
             for (int i = int(queue.size()) - 1; i >=0; --i) {
                 bag.deupdate(queue[i]);
             }
@@ -211,7 +219,7 @@ int main()
             state.b2b = b2b;
             state.ren = ren;
 
-            ai.init(queue, Lock(), state, w);
+            ai.init(queue, state, Lock(), w);
 
             ai.search();
 
@@ -222,10 +230,8 @@ int main()
         {
             auto plan = ai.request(0);
 
-            while (!plan.has_value())
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(16));
-                plan = ai.request(0);
+            if (!plan.has_value()) {
+                return -1;
             }
 
             tbp::bot::Suggestion suggestion;
@@ -264,12 +270,11 @@ int main()
         {
             auto play_message = message.get<tbp::frontend::Play>();
 
-            Piece::Data piece = Piece::Data
-            (
+            auto piece = move::Placement(
                 i8(play_message.move.location.x),
                 i8(play_message.move.location.y),
-                convert_piece_from_tbp(play_message.move.location.type),
-                convert_rotation_from_tbp(play_message.move.location.orientation)
+                convert_rotation_from_tbp(play_message.move.location.orientation),
+                convert_piece_from_tbp(play_message.move.location.type)
             );
 
             if (!ai.advance(piece, new_piece)) {
@@ -297,7 +302,6 @@ int main()
         {
             ai.request(0);
             ai.clear();
-            // std::cerr << "Stop ai...\n";
             break;
         }
         

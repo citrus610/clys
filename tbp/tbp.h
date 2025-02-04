@@ -14,7 +14,8 @@ struct adl_serializer<std::optional<T>> {
     static void to_json(json& j, const std::optional<T>& opt) {
         if (opt.has_value()) {
             j = *opt;
-        } else {
+        }
+        else {
             j = nullptr;
         }
     }
@@ -22,7 +23,8 @@ struct adl_serializer<std::optional<T>> {
     static void from_json(const json& j, std::optional<T>& opt) {
         if (j.is_null()) {
             opt = std::nullopt;
-        } else {
+        }
+        else {
             opt = j.get<T>();
         }
     }
@@ -43,6 +45,7 @@ enum class Piece
     S,
     Z
 };
+
 NLOHMANN_JSON_SERIALIZE_ENUM(Piece, 
 {
     {Piece::I, "I"},
@@ -65,6 +68,7 @@ enum class Cell
     Z,
     G
 };
+
 NLOHMANN_JSON_SERIALIZE_ENUM(Cell, 
 {
     {Cell::I, "I"},
@@ -84,6 +88,7 @@ enum class Orientation
     East,
     West
 };
+
 NLOHMANN_JSON_SERIALIZE_ENUM(Orientation, 
 {
     {Orientation::North, "north"},
@@ -98,6 +103,7 @@ enum class Spin
     Mini,
     Full
 };
+
 NLOHMANN_JSON_SERIALIZE_ENUM(Spin, 
 {
     {Spin::None, "none"},
@@ -137,6 +143,7 @@ enum class ErrorCause
 {
     UnsupportedRules
 };
+
 NLOHMANN_JSON_SERIALIZE_ENUM(ErrorCause, 
 {
     {ErrorCause::UnsupportedRules, "unsupported_rules"}
@@ -151,7 +158,6 @@ public:
 
 namespace frontend 
 {
-
     enum class FrontendMessageKind
     {
         Start,
@@ -185,6 +191,7 @@ namespace frontend
             std::end(m),
             [e] (const std::pair<FrontendMessageKind, BasicJsonType>& ej_pair) -> bool { return ej_pair.first == e; }
         );
+
         j = ((it != std::end(m)) ? it : std::begin(m))->second;
     };
 
@@ -210,6 +217,7 @@ namespace frontend
             std::end(m),
             [&j] (const std::pair<FrontendMessageKind, BasicJsonType>& ej_pair) -> bool { return ej_pair.second == j; }
         );
+
         e = ((it != std::end(m)) ? it : std::begin(m))->first;
     };
 
@@ -267,7 +275,6 @@ namespace frontend
 
 namespace bot 
 {
-
     enum class BotMessageKind 
     {
         Error,
@@ -275,6 +282,7 @@ namespace bot
         Info,
         Suggestion
     };
+    
     NLOHMANN_JSON_SERIALIZE_ENUM(BotMessageKind, 
     {
         {BotMessageKind::Error, "error"},
