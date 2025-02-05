@@ -64,7 +64,7 @@ void get_donation(Board& board, i32 heights[10], i32 depth, i32 tsd_slot[3], i32
 
 bool get_pc_next(Board& board, i32 heights[10], piece::Type next);
 
-i32 get_pc_able(Board& board, i32 heights[10], i32 next, const std::vector<piece::Type>& queue, const piece::Type& hold);
+i32 get_pc_able(Board& board, i32 heights[10]);
 
 bool get_pc_split(Board& board, i32 height);
 

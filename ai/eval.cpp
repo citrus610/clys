@@ -38,7 +38,7 @@ void evaluate(node::Data& node, node::Data& parent, move::Placement placement, c
     node.score.eval += (eval::get_pc_next(board, heights, next) || eval::get_pc_next(board, heights, node.state.hold)) * w.pc;
 
     // Pc-able
-    i32 pcable = eval::get_pc_able(board, heights, node.state.next, queue, node.state.hold);
+    i32 pcable = eval::get_pc_able(board, heights);
     node.score.eval += pcable * w.pcable;
 
     // Structure for T spin
@@ -136,20 +136,20 @@ void evaluate(node::Data& node, node::Data& parent, move::Placement placement, c
     }
 
     // Ren
-    if (!pc) {
-        if (node.state.ren > 10) {
-            node.score.action += w.ren[4];
-        }
-        else if (node.state.ren > 8) {
-            node.score.action += w.ren[3];
-        }
-        else if (node.state.ren > 6) {
-            node.score.action += w.ren[2];
-        }
-        else if (node.state.ren > 4) {
-            node.score.action += w.ren[1];
-        }
-        else if (node.state.ren > 2) {
+    if (node.state.ren > 10) {
+        node.score.action += w.ren[4];
+    }
+    else if (node.state.ren > 8) {
+        node.score.action += w.ren[3];
+    }
+    else if (node.state.ren > 6) {
+        node.score.action += w.ren[2];
+    }
+    else if (node.state.ren > 4) {
+        node.score.action += w.ren[1];
+    }
+    else if (node.state.ren > 2) {
+        if (!pc) {
             node.score.action += w.ren[0];
         }
     }
@@ -556,7 +556,7 @@ bool get_pc_next(Board& board, i32 heights[10], piece::Type next)
     return false;
 };
 
-i32 get_pc_able(Board& board, i32 heights[10], i32 next, const std::vector<piece::Type>& queue, const piece::Type& hold)
+i32 get_pc_able(Board& board, i32 heights[10])
 {
     i32 count = board.get_count();
 
@@ -575,26 +575,17 @@ i32 get_pc_able(Board& board, i32 heights[10], i32 next, const std::vector<piece
         height += 1;
     }
 
-    i32 need = (height * 10 - count) / 4;
-    i32 have = queue.size() - next + (hold != piece::Type::NONE);
-
     const i32 MAX_PC_HEIGHT = 6;
 
     while (height <= MAX_PC_HEIGHT)
     {
         bool split = eval::get_pc_split(board, height);
         bool fillable = eval::get_pc_fillable(board, height);
-        bool parity = true;
 
-        if (need <= have) {
-            parity = eval::get_pc_parity(board, need, next, queue, hold);
-        }
-
-        if (split && fillable && parity) {
+        if (split && fillable) {
             break;
         }
 
-        need += 5;
         height += 2;
     }
 
@@ -664,11 +655,11 @@ bool get_pc_parity(Board& board, i32 need, i32 next, const std::vector<piece::Ty
     // Calculate the maximum possible parity changed by pieces
     i32 change_max = 0;
 
-    for (size_t i = next; i < queue.size(); ++i) {
-        change_max += (queue[next] == piece::Type::J);
-        change_max += (queue[next] == piece::Type::L);
-        change_max += (queue[next] == piece::Type::T);
-        change_max += (queue[next] == piece::Type::I) * 2;
+    for (size_t i = next; i < std::min(queue.size(), size_t(need)); ++i) {
+        change_max += (queue[i] == piece::Type::J);
+        change_max += (queue[i] == piece::Type::L);
+        change_max += (queue[i] == piece::Type::T);
+        change_max += (queue[i] == piece::Type::I) * 2;
     }
 
     change_max += (hold == piece::Type::J);
@@ -676,23 +667,23 @@ bool get_pc_parity(Board& board, i32 need, i32 next, const std::vector<piece::Ty
     change_max += (hold == piece::Type::T);
     change_max += (hold == piece::Type::I) * 2;
 
-    if (parity < change_max) {
+    if (parity > change_max) {
         return false;
     }
 
     // Non L, J pieces count
     i32 non_lj = 0;
 
-    for (size_t i = next; i < queue.size(); ++i) {
-        non_lj += (queue[next] != piece::Type::L) && (queue[next] != piece::Type::J);
+    for (size_t i = next; i < std::min(queue.size(), size_t(need)); ++i) {
+        non_lj += (queue[i] != piece::Type::L) && (queue[i] != piece::Type::J);
     }
 
-    non_lj += (hold != piece::Type::L) && (hold != piece::Type::J);
+    non_lj += (hold != piece::Type::L) && (hold != piece::Type::J) && (hold != piece::Type::NONE);
 
     // Must change parity
     i32 must_change = need - std::min(non_lj, need);
 
-    if ((change_max == must_change) && ((parity ^ must_change) & 1) != 0) {
+    if ((must_change == change_max) && (((parity ^ must_change) & 1) != 0)) {
         return false;
     }
 
