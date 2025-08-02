@@ -2,6 +2,7 @@
 
 #include "beam.h"
 #include "path.h"
+#include "gaze.h"
 
 namespace ai
 {

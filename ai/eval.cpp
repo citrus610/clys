@@ -5,18 +5,12 @@ namespace eval
 
 void evaluate(node::Data& node, node::Data& parent, move::Placement placement, const std::vector<piece::Type>& queue, const Weight& w)
 {
-    // Terrain evaluation
     node.score.eval = 0;
 
-    Board board = node.state.board;
+    auto board = node.state.board;
 
     i32 heights[10] = { 0 };
     board.get_heights(heights);
-
-    // Height in the middle
-    i32 mid = *std::max_element(heights + 3, heights + 7);
-    node.score.eval += std::max(mid - 10, 0) * w.mid_10;
-    node.score.eval += std::max(mid - 15, 0) * w.mid_15;
 
     // Pc next
     auto next = piece::Type::NONE;
@@ -37,77 +31,56 @@ void evaluate(node::Data& node, node::Data& parent, move::Placement placement, c
 
     node.score.eval += (eval::get_pc_next(board, heights, next) || eval::get_pc_next(board, heights, node.state.hold)) * w.pc;
 
-    // Pc-able
-    i32 pcable = eval::get_pc_able(board, heights);
-    node.score.eval += pcable * w.pcable;
-
-    // Structure for T spin
-    i32 tsd_slot[3] = { 0 };
-    i32 tst_slot[4] = { 0 };
+    // T slot
+    i32 tslot[4] = { 0 };
     i32 donation_depth = std::max(i32(node.state.hold == piece::Type::T) + i32(node.state.bag.get(piece::Type::T)), 1);
 
-    eval::get_donation(board, heights, donation_depth, tsd_slot, tst_slot);
-
-    for (i32 i = 0; i < 3; ++i) {
-        node.score.eval += tsd_slot[i] * w.tsd_slot[i];
-    }
+    eval::get_donation(board, heights, donation_depth, tslot);
 
     for (i32 i = 0; i < 4; ++i) {
-        node.score.eval += tst_slot[i] * w.tst_slot[i];
+        node.score.eval += tslot[i] * w.tslot[i];
     }
 
-    // Middle height
-    mid = *std::max_element(heights + 3, heights + 7);
-    node.score.eval += mid * w.mid;
+    // Height
+    node.score.eval += *std::max_element(heights, heights + 10) * w.height;
+
+    for (i32 i = 0; i < 10; ++i) {
+        node.score.eval += heights[i] * w.height_map[i];
+    }
 
     // Well
-    i32 well_x = 0;
-    i32 well = eval::get_well(board, heights, well_x);
-    node.score.eval += std::clamp(well, 0, 5) * w.well;
+    auto [well, well_x] = eval::get_well(board, heights);
 
-    // Well position map
-    const i32 map[10] = { -4, -3, -2, -1, 0, 0, -1, -2, -3, -4 };
-    node.score.eval += map[well_x] * w.map;
+    node.score.eval += std::min(well, 4) * w.well;
+    node.score.eval += w.well_map[well_x];
 
-    // Bumpiness
-    i32 bump = eval::get_bump(heights, well_x);
-    node.score.eval += bump * w.bump;
+    // Bump
+    node.score.eval += eval::get_bump(heights, well_x) * w.bump;
 
-    // Volumn
-    i32 volume = eval::get_volume(node.state.board, heights, well_x);
-    node.score.eval += std::clamp(volume, 0, 48) * w.volume;
-    node.score.eval += volume * w.volume;
-
-    // Parity
-    i32 parity = eval::get_parity(board);
-    node.score.eval += parity * w.parity;
-
-    // Parity vertical
-    i32 parity_v = eval::get_parity_vertical(board, node.state.hold, node.state.bag);
-    node.score.eval += parity_v * w.parity_v;
-
-    // Border
-    i32 border = eval::get_border(board);
-    node.score.eval += border * w.border;
+    // Transition
+    node.score.eval += eval::get_transition(board, well_x);
 
     // Hole
-    i32 hole = eval::get_hole(board, heights);
-    node.score.eval += hole * w.hole;
+    auto [hole_a, hole_b] = eval::get_hole(board, heights, well_x);
+
+    node.score.eval += hole_a * w.hole_a;
+    node.score.eval += hole_b * w.hole_b;
 
     // Cover
-    i32 cover = eval::get_cover(board, heights);
-    node.score.eval += cover * w.cover;
+    node.score.eval += eval::get_cover(board, heights) * w.cover;
 
-    // Bonuses
+    // Bonus
     if (node.state.b2b > 0) {
-        node.score.eval += w.b2b_bonus;
+        node.score.eval += w.bonus_b2b;
     }
 
     if (node.state.ren > 1) {
-        node.score.eval += (node.state.ren - 1) * w.ren_bonus;
+        node.score.eval += (node.state.ren - 1) * w.bonus_ren;
     }
 
-    // Action evaluation
+    // Scale
+    node.score.eval = node.score.eval * w.scale / 1024;
+
     // Clear
     bool pc = node.state.board.is_empty();
 
@@ -130,51 +103,87 @@ void evaluate(node::Data& node, node::Data& parent, move::Placement placement, c
         node.score.action += w.b2b;
     }
 
-    // Continuous b2b
-    if (node.state.b2b > 1 && node.state.ren > 1) {
-        node.score.action += w.b2b_cont;
-    }
-
     // Ren
-    if (node.state.ren > 10) {
-        node.score.action += w.ren[4];
-    }
-    else if (node.state.ren > 8) {
-        node.score.action += w.ren[3];
-    }
-    else if (node.state.ren > 6) {
-        node.score.action += w.ren[2];
-    }
-    else if (node.state.ren > 4) {
-        node.score.action += w.ren[1];
-    }
-    else if (node.state.ren > 2) {
-        if (!pc) {
+    if (!pc) {
+        if (node.state.ren > 10) {
+            node.score.action += w.ren[4];
+        }
+        else if (node.state.ren > 8) {
+            node.score.action += w.ren[3];
+        }
+        else if (node.state.ren > 6) {
+            node.score.action += w.ren[2];
+        }
+        else if (node.state.ren > 4) {
+            node.score.action += w.ren[1];
+        }
+        else if (node.state.ren > 2) {
             node.score.action += w.ren[0];
         }
     }
 
-    // Waste time
+    // Feed
+    if (parent.state.ren == 1 && node.lock.clear == 0 && !pc) {
+        node.score.action += w.feed;
+    }
+
+    // Order
+    const bool is_parent_b2b = parent.lock.clear > 0 && (parent.lock.tspin || parent.lock.clear == 4);
+    const bool is_b2b = node.lock.clear > 0 && (node.lock.tspin || node.lock.clear == 4);
+
+    if (!is_parent_b2b && is_b2b && node.state.ren < 6) {
+        node.score.action -= w.order;
+    }
+
+    // Delay
     if (node.lock.softdrop && !(node.lock.tspin && node.lock.clear > 0) && !pc) {
-        node.score.action += std::max(20 - placement.y, 0) * w.waste_time;
+        node.score.action += std::max(20 - placement.y, 0) * w.delay;
     }
 
     if (placement.type != queue[parent.state.next]) {
-        node.score.action += w.waste_time;
+        node.score.action += w.delay;
     }
 
     if (node.lock.softdrop && pc) {
-        node.score.action += w.waste_time;
+        node.score.action += w.delay;
     }
 
     // Waste T
     if (placement.type == piece::Type::T && !(node.lock.tspin && node.lock.clear > 0) && !pc) {
         node.score.action += w.waste_T;
     }
+
+    // Waste I
+    if (placement.type == piece::Type::I && node.lock.clear < 4 && !pc) {
+        node.score.action += w.waste_I;
+    }
 };
 
-// Returns the board's bumpiness
-// Bumpiness is defined as the sum of squares of the height changes outside of the well
+std::pair<i32, i32> get_well(Board& board, i32 heights[10])
+{
+    i32 x = 0;
+
+    for (int i = 1; i < 10; ++i) {
+        if (heights[i] < heights[x]) {
+            x = i;
+        }
+    }
+
+    u64 mask = ~0b0;
+
+    for (int i = 0; i < 10; ++i) {
+        if (i == x) {
+            continue;
+        }
+
+        mask = mask & board[i];
+    }
+
+    mask = mask >> heights[x];
+
+    return { std::countr_one(mask), x };
+};
+
 i32 get_bump(i32 heights[10], i32 well_x)
 {
     i32 bump = 0;
@@ -189,26 +198,42 @@ i32 get_bump(i32 heights[10], i32 well_x)
             continue;
         }
 
-        bump += (heights[left] - heights[i]) * (heights[left] - heights[i]);
+        i32 value = std::abs(heights[left] - heights[i]);
+
+        bump += value * value;
         left = i;
     }
 
     return bump;
 };
 
-// Returns number of hole in the board
-i32 get_hole(Board& board, i32 heights[10])
+i32 get_transition(Board& board, i32 well_x)
 {
+    i32 result = 0;
+
+    result += 64 - std::popcount(board[0]);
+    result += 64 - std::popcount(board[9]);
+
+    for (i32 i = 0; i < 9; ++i) {
+        result += std::popcount(board[i] ^ board[i + 1]);
+    }
+
+    return result;
+};
+
+std::pair<i32, i32> get_hole(Board& board, i32 heights[10], i32 well_x)
+{
+    const i32 height_min = heights[well_x];
+
     i32 hole = 0;
 
     for (i32 i = 0; i < 10; ++i) {
-        hole += heights[i] - std::popcount(board[i]);
+        hole += heights[i] - height_min - std::popcount(board[i] >> height_min);
     }
 
-    return hole;
+    return { hole, height_min };
 };
 
-// Evaluates how covered the holes in the board are
 i32 get_cover(Board& board, i32 heights[10])
 {
     i32 cover = 0;
@@ -228,128 +253,6 @@ i32 get_cover(Board& board, i32 heights[10])
     return cover;
 };
 
-// Returns the depth of the board's well
-// Well position is the position of the lowest column in the board
-i32 get_well(Board& board, i32 heights[10], i32& well_x)
-{
-    well_x = 0;
-
-    for (int i = 1; i < 10; ++i) {
-        if (heights[i] < heights[well_x]) {
-            well_x = i;
-        }
-    }
-
-    u64 mask = ~0b0;
-
-    for (int i = 0; i < 10; ++i) {
-        if (i == well_x) {
-            continue;
-        }
-
-        mask = mask & board[i];
-    }
-
-    mask = mask >> heights[well_x];
-
-    return std::countr_one(mask);
-};
-
-// Returns board's parity
-i32 get_parity(Board& board)
-{
-    const u64 mask_black = 0xAAAAAAAAAAAAAAAAULL;
-    const u64 mask_white = 0x5555555555555555ULL;
-
-    i32 black = 0;
-    i32 white = 0;
-
-    for (i32 i = 0; i < 10; ++i) {
-        if (i & 1) {
-            black += std::popcount(board[i] & mask_black);
-        }
-        else {
-            white += std::popcount(board[i] & mask_white);
-        }
-    }
-
-    return std::abs(black - white);
-};
-
-// Return board's vertical parity
-i32 get_parity_vertical(Board& board, piece::Type hold, Bag& bag)
-{
-    // Calculate vertical parity
-    i32 parity = 0;
-
-    for (i32 i = 0; i < 10; ++i) {
-        if (i & 1) {
-            parity += std::popcount(board[i]);
-        }
-        else {
-            parity -= std::popcount(board[i]);
-        }
-    }
-
-    parity = std::abs(parity);
-
-    // Calculate the possible parity changed by pieces
-    i32 change_possible = 0;
-
-    change_possible += bag.get(piece::Type::J) * 2;
-    change_possible += bag.get(piece::Type::L) * 2;
-    change_possible += bag.get(piece::Type::T) * 2;
-    change_possible += bag.get(piece::Type::I) * 4;
-
-    change_possible += (hold == piece::Type::J) * 2;
-    change_possible += (hold == piece::Type::L) * 2;
-    change_possible += (hold == piece::Type::T) * 2;
-    change_possible += (hold == piece::Type::I) * 4;
-
-    return std::max(parity - change_possible, 0);
-};
-
-// Returns the number of horizontal holes on 2 sides of the board
-i32 get_border(Board& board)
-{
-    i32 result = 0;
-
-    auto copy = board;
-
-    while (!copy.is_empty())
-    {
-        u32 l = 0;
-        u32 r = 0;
-
-        for (i32 i = 0; i < 5; ++i) {
-            l |= (copy[i] & 1) << i;
-            r |= (copy[9 - i] & 1) << i;
-        }
-
-        result += 32 - std::countl_zero(l) - std::popcount(l);
-        result += 32 - std::countl_zero(r) - std::popcount(r);
-
-        for (i32 i = 0; i < 10; ++i) {
-            copy[i] = copy[i] >> 1;
-        }
-    }
-
-    return result;
-};
-
-// Returns board's volume above the garbage height
-i32 get_volume(Board& board, i32 heights[10], i32 well_x)
-{
-    i32 volume = 0;
-
-    for (i32 i = 0; i < 10; ++i) {
-        volume += std::popcount(board[i] >> heights[well_x]);
-    }
-
-    return volume;
-};
-
-// Evaluates tspin structure
 move::Placement get_structure(Board& board, i32 heights[10])
 {
     for (i32 x = 0; x < 8; ++x) {
@@ -416,9 +319,7 @@ move::Placement get_structure(Board& board, i32 heights[10])
     return move::Placement();
 };
 
-// Checks for board's donations
-// Updates the board's state by clearing tspin slots as if T pieces had been placed there
-void get_donation(Board& board, i32 heights[10], i32 depth, i32 tsd_slot[3], i32 tst_slot[4])
+void get_donation(Board& board, i32 heights[10], i32 depth, i32 tslot[4])
 {
     for (i32 i = 0; i < depth; ++i) {
         auto copy = board;
@@ -432,12 +333,7 @@ void get_donation(Board& board, i32 heights[10], i32 depth, i32 tsd_slot[3], i32
 
         i32 clear = copy.clear();
 
-        if (quiet.r == piece::Rotation::DOWN) {
-            tsd_slot[clear] += 1;
-        }
-        else {
-            tst_slot[clear] += 1;
-        }
+        tslot[clear] += 1;
 
         if (clear >= 2) {
             board = copy;
@@ -449,7 +345,6 @@ void get_donation(Board& board, i32 heights[10], i32 depth, i32 tsd_slot[3], i32
     }
 };
 
-// Check if the board is able to do a perfect clear in the next move
 bool get_pc_next(Board& board, i32 heights[10], piece::Type next)
 {
     if (next == piece::Type::NONE) {

@@ -3,7 +3,7 @@
 namespace path
 {
 
-path::Node::Node()
+Node::Node()
 {
     this->position = move::Placement();
     this->queue.clear();
@@ -11,10 +11,57 @@ path::Node::Node()
     this->time = 0;
 };
 
-bool path::Node::operator <= (const path::Node& other)
+bool Node::attempt(Board& board, Input move)
+{
+    bool success = false;
+    auto previous = this->position;
+
+    switch (move)
+    {
+    case Input::RIGHT:
+        success = this->move_right(board);
+        break;
+    case Input::LEFT:
+        success = this->move_left(board);
+        break;
+    case Input::CW:
+        success = this->move_cw(board);
+        break;
+    case Input::CCW:
+        success = this->move_ccw(board);
+        break;
+    case Input::DOWN:
+        this->move_down(board);
+        success = this->position.y <= previous.y;
+        if (success) this->time += 2;
+        break;
+    default:
+        break;
+    }
+
+    if (!success) {
+        return false;
+    }
+
+    if (!this->queue.empty() && this->queue.back() == move) {
+        this->queue.push_back(Input::NONE);
+        this->time += 1;
+    }
+
+    this->queue.push_back(move);
+    this->time += 1;
+
+    if (move == Input::DOWN) {
+        this->time += std::abs(previous.y - this->position.y) * 2;
+    }
+
+    return true;
+};
+
+bool Node::operator < (const Node& other) const
 {
     if (this->time != other.time) {
-        return this->time >= other.time;
+        return this->time > other.time;
     }
 
     size_t down_a = 0;
@@ -33,7 +80,7 @@ bool path::Node::operator <= (const path::Node& other)
     }
 
     if (down_a != down_b) {
-        return down_a >= down_b;
+        return down_a > down_b;
     }
 
     size_t air_time_a = 0;
@@ -55,10 +102,49 @@ bool path::Node::operator <= (const path::Node& other)
         air_time_b += 1;
     }
 
-    return air_time_a <= air_time_b;
+    return air_time_a < air_time_b;
 };
 
-bool path::Node::move_right(Board& board)
+bool Node::operator == (const Node& other) const
+{
+    size_t down_a = 0;
+    size_t down_b = 0;
+
+    for (auto& i : this->queue) {
+        if (i == Input::DOWN) {
+            down_a += 1;
+        }
+    }
+
+    for (auto& i : other.queue) {
+        if (i == Input::DOWN) {
+            down_b += 1;
+        }
+    }
+
+    size_t air_time_a = 0;
+    size_t air_time_b = 0;
+
+    for (auto& i : this->queue) {
+        if (i == Input::DOWN) {
+            break;
+        }
+
+        air_time_a += 1;
+    }
+
+    for (auto& i : other.queue) {
+        if (i == Input::DOWN) {
+            break;
+        }
+
+        air_time_b += 1;
+    }
+
+    return this->time == other.time && down_a == down_b && air_time_a == air_time_b;
+};
+
+bool Node::move_right(Board& board)
 {
     auto moved = this->position;
 
@@ -72,7 +158,7 @@ bool path::Node::move_right(Board& board)
     return false;
 };
 
-bool path::Node::move_left(Board& board)
+bool Node::move_left(Board& board)
 {
     auto moved = this->position;
 
@@ -86,7 +172,7 @@ bool path::Node::move_left(Board& board)
     return false;
 };
 
-bool path::Node::move_cw(Board& board)
+bool Node::move_cw(Board& board)
 {
     piece::Rotation r;
 
@@ -109,7 +195,7 @@ bool path::Node::move_cw(Board& board)
     return this->move_rotate(board, r);
 };
 
-bool path::Node::move_ccw(Board& board)
+bool Node::move_ccw(Board& board)
 {
     piece::Rotation r;
 
@@ -132,7 +218,7 @@ bool path::Node::move_ccw(Board& board)
     return this->move_rotate(board, r);
 };
 
-bool path::Node::move_rotate(Board& board, piece::Rotation r)
+bool Node::move_rotate(Board& board, piece::Rotation r)
 {
     i8 srs_index = this->position.type != piece::Type::I;
 
@@ -155,184 +241,205 @@ bool path::Node::move_rotate(Board& board, piece::Rotation r)
     return false;
 };
 
-void path::Node::move_down(Board& board)
+void Node::move_down(Board& board)
 {
-    auto moved = this->position;
-
     while (true)
     {
+        auto moved = this->position;
         moved.y -= 1;
 
         if (moved.is_colliding(board)) {
             break;
         }
-    }
 
-    this->position.y = moved.y + 1;
-};
-
-path::Map::Map()
-{
-    for (auto r = 0; r < 4; ++r) {
-        for (auto x = 0; x < 10; ++x) {
-            for (auto y = 0; y < 40; ++y) {
-                this->data[r][x][y] = path::Node();
-            }
-        }
+        this->position.y -= 1;
     }
 };
 
-bool path::Map::add(const path::Node& node)
+Map::Map()
 {
-    auto& get = this->data[static_cast<u8>(node.position.r)][node.position.x][node.position.y];
+    this->clear();
+};
 
-    if (get.queue.empty() || get <= node) {
-        get = node;
+bool Map::get(move::Placement placement, Node& node)
+{
+    node = this->data[placement.x][placement.y][static_cast<u8>(placement.r)];
+    return !node.queue.empty();
+};
+
+bool Map::add(move::Placement placement, Node& node)
+{
+    if (this->data[placement.x][placement.y][static_cast<u8>(placement.r)].queue.empty()) {
+        this->data[placement.x][placement.y][static_cast<u8>(placement.r)] = node;
+        return true;
+    }
+
+    if (!(node < this->data[placement.x][placement.y][static_cast<u8>(placement.r)])) {
+        this->data[placement.x][placement.y][static_cast<u8>(placement.r)] = node;
         return true;
     }
 
     return false;
 };
 
-std::vector<Input> find(Board board, move::Placement target)
+void Map::clear()
 {
-    target.normalize();
-
-    auto map = Map();
-    auto node = path::Node();
-    auto best = path::Node();
-
-    node.position = move::Placement(
-        i8(4),
-        i8(19),
-        piece::Rotation::UP,
-        target.type
-    );
-
-    if (node.position.is_colliding(board)) {
-        node.position.y += 1;
-
-        if (node.position.is_colliding(board)) {
-            return { path::Input::DROP };
+    for (i32 x = 0; x < 10; ++x) {
+        for (i32 y = 0; y < 40; ++y) {
+            for (i32 r = 0; r < 4; ++r) {
+                this->data[x][y][r].position = move::Placement(x, y, piece::Rotation(r), piece::Type::NONE);
+                this->data[x][y][r].queue.clear();
+                this->data[x][y][r].time = 0;
+            }
         }
     }
-
-    path::expand(node, board, map, target, best);
-
-    if (best.queue.size() == 1) {
-        best.queue.insert(best.queue.begin(), path::Input::NONE);
-    }
-
-    return best.queue;
 };
 
-void expand(const path::Node& node, Board& board, Map& map, const move::Placement& target, path::Node& best)
+Queue find(Board board, move::Placement destination, bool force_20)
 {
-    // Drop
-    auto drop = node;
+    std::vector<Input> move;
+    move.clear();
 
-    drop.move_down(board);
+    if (destination.type == piece::Type::NONE) {
+        move.push_back(Input::NONE);
+        move.push_back(Input::DROP);
+        return move;
+    }
 
-    auto lock = drop;
+    std::vector<Node> queue;
+    std::vector<Node> locks;
+    Map map_queue;
+    Map map_locks;
 
-    lock.position.normalize();
-    lock.queue.push_back(path::Input::DROP);
-    lock.time += 1;
+    Node init = Node();
 
-    if (lock.position == target && drop.position.y < 21) {
-        if (best.queue.empty() || best <= lock) {
-            best = lock;
-            return;
+    init.position = move::Placement(4, 19, piece::Rotation::UP, destination.type);
+
+    if (init.position.is_colliding(board)) {
+        init.position.y = 20;
+
+        if (init.position.is_colliding(board)) {
+            move.push_back(Input::NONE);
+            move.push_back(Input::DROP);
+            return move;
         }
     }
 
-    if (drop.position.y != node.position.y) {
-        if (!drop.queue.empty() && drop.queue.back() == path::Input::DOWN) {
-            drop.queue.push_back(path::Input::NONE);
-            drop.time += 1;
-        }
-
-        drop.queue.push_back(path::Input::DOWN);
-        drop.time += std::abs(node.position.y - drop.position.y) * 2 + 1;
-
-        if (map.add(drop)) {
-            path::expand(drop, board, map, target, best);
-        }
+    if (force_20) {
+        init.position.y = 20;
     }
 
-    bool dropped = std::find(node.queue.begin(), node.queue.end(), path::Input::DOWN) != node.queue.end();
+    queue.push_back(init);
+    map_queue.add(init.position, init);
 
-    // Right
-    auto right = node;
+    while (!queue.empty())
+    {
+        Node node = queue.back();
+        queue.pop_back();
 
-    if (right.move_right(board) && !(right.position.is_above_stack(board) && dropped)) {
-        if (!right.queue.empty() && right.queue.back() == path::Input::RIGHT) {
-            right.queue.push_back(path::Input::NONE);
-            right.time += 1;
-        }
-
-        right.queue.push_back(path::Input::RIGHT);
-        right.time += 1;
-
-        if (map.add(right)) {
-            path::expand(right, board, map, target, best);
-        }
+        expand(board, node, queue, map_queue);
+        lock(board, node, locks, map_locks);
     }
 
-    // Left
-    auto left = node;
+    Node final;
+    map_locks.get(destination.get_normalize(), final);
+    move = final.queue;
 
-    if (left.move_left(board) && !(left.position.is_above_stack(board) && dropped)) {
-        if (!left.queue.empty() && left.queue.back() == path::Input::LEFT) {
-            left.queue.push_back(path::Input::NONE);
-            left.time += 1;
-        }
+    if (move.empty() || move.back() != Input::DROP) {
+        move.push_back(Input::DROP);
+    }
 
-        left.queue.push_back(path::Input::LEFT);
-        left.time += 1;
+    if (move.size() == 1) {
+        move.insert(move.begin(), Input::NONE);
+    }
 
-        if (map.add(left)) {
-            path::expand(left, board, map, target, best);
-        }
+    return move;
+};
+
+void expand(Board board, Node& node, std::vector<Node>& queue, Map& map_queue)
+{
+    Node n_drop = node;
+    if (n_drop.attempt(board, Input::DOWN)) {
+        add(n_drop, queue, map_queue);
+    }
+
+    Node n_right = node;
+    if (n_right.attempt(board, Input::RIGHT)) {
+        add(n_right, queue, map_queue);
+    }
+
+    Node n_left = node;
+    if (n_left.attempt(board, Input::LEFT)) {
+        add(n_left, queue, map_queue);
     }
 
     if (node.position.type == piece::Type::O) {
         return;
     }
 
-    // Clockwise
-    auto cw = node;
-
-    if (cw.move_cw(board) && !(cw.position.is_above_stack(board) && dropped)) {
-        if (!cw.queue.empty() && cw.queue.back() == path::Input::CW) {
-            cw.queue.push_back(path::Input::NONE);
-            cw.time += 1;
-        }
-
-        cw.queue.push_back(path::Input::CW);
-        cw.time += 1;
-
-        if (map.add(cw)) {
-            path::expand(cw, board, map, target, best);
-        }
+    Node n_cw = node;
+    if (n_cw.attempt(board, Input::CW)) {
+        add(n_cw, queue, map_queue);
     }
 
-    // Counter clockwise
-    auto ccw = node;
+    Node n_ccw = node;
+    if (n_ccw.attempt(board, Input::CCW)) {
+        add(n_ccw, queue, map_queue);
+    }
+};
 
-    if (ccw.move_ccw(board) && !(ccw.position.is_above_stack(board) && dropped)) {
-        if (!ccw.queue.empty() && ccw.queue.back() == path::Input::CCW) {
-            ccw.queue.push_back(path::Input::NONE);
-            ccw.time += 1;
-        }
+void lock(Board board, Node& node, std::vector<Node>& locks, Map& map_locks)
+{
+    node.move_down(board);
+    node.position.normalize();
 
-        ccw.queue.push_back(path::Input::CCW);
-        ccw.time += 1;
 
-        if (map.add(ccw)) {
-            path::expand(ccw, board, map, target, best);
+    if (node.queue.empty() || node.queue.back() != Input::DROP) {
+        node.queue.push_back(Input::DROP);
+        node.time += 1;
+    }
+
+    if (!map_locks.add(node.position, node)) {
+        return;
+    }
+
+    int idx = index(node, locks);
+
+    if (idx == -1) {
+        locks.push_back(node);
+    }
+    else if (locks[idx] < node) {
+        locks[idx] = node;
+    }
+};
+
+void add(Node& node, std::vector<Node>& queue, Map& map_queue)
+{
+    if (!map_queue.add(node.position, node)) {
+        return;
+    }
+
+    int idx = index(node, queue);
+
+    if (idx == -1) {
+        queue.push_back(node);
+    }
+    else if (queue[idx] < node) {
+        queue[idx] = node;
+    }
+    else if (queue[idx] == node) {
+        queue.push_back(node);
+    }
+};
+
+int index(Node& node, std::vector<Node>& queue)
+{
+    for (int i = 0; i < int(queue.size()); ++i) {
+        if (node.position == queue[i].position) {
+            return i;
         }
     }
+    return -1;
 };
 
 };

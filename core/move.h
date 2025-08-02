@@ -20,6 +20,16 @@ constexpr i8 SRS_LUT[2][4][5][2] = {
     }
 };
 
+constexpr i8 LOCK_HEIGHT_LUT[7][4] = {
+    { 19, 21, 19, 20 },
+    { 19, 20, 20, 20 },
+    { 19, 20, 20, 20 },
+    { 19, 20, 20, 19 },
+    { 19, 20, 20, 20 },
+    { 19, 20, 20, 20 },
+    { 19, 20, 20, 20 }
+};
+
 class Placement
 {
 public:
@@ -94,6 +104,11 @@ constexpr i8 get_srs_y(const piece::Type& piece, const piece::Rotation& r, i32 k
 constexpr i8 get_srs_y(i32 index, const piece::Rotation& r, i32 kick)
 {
     return SRS_LUT[index][static_cast<u8>(r)][kick][1];
+};
+
+constexpr i8 get_lock_height(const piece::Type& piece, const piece::Rotation& r)
+{
+    return LOCK_HEIGHT_LUT[static_cast<u8>(piece)][static_cast<u8>(r)];
 };
 
 inline void bench()

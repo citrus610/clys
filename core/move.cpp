@@ -459,7 +459,7 @@ void expand(const Placement& piece, Map& collision, Map& visited, Map& locked, s
 
     move::move_drop(drop, collision);
 
-    if (drop.y < 21) {
+    if (drop.y <= move::get_lock_height(drop.type, drop.r)) {
         auto lock = drop;
         lock.normalize();
         

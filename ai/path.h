@@ -13,6 +13,7 @@ enum class Input
     CCW,
     DOWN,
     DROP,
+    WAIT,
     NONE
 };
 
@@ -27,7 +28,10 @@ public:
 public:
     Node();
 public:
-    bool operator <= (const path::Node& other);
+    bool operator < (const path::Node& other) const;
+    bool operator == (const path::Node& other) const;
+public:
+    bool attempt(Board& board, Input move);
 public:
     bool move_right(Board& board);
     bool move_left(Board& board);
@@ -40,56 +44,24 @@ public:
 class Map
 {
 public:
-    path::Node data[4][10][40];
+    path::Node data[10][40][4];
 public:
     Map();
 public:
-    bool add(const path::Node& node);
+    bool get(move::Placement placement, Node& node);
+    bool add(move::Placement placement, Node& node);
+public:
+    void clear();
 };
 
-std::vector<Input> find(Board board, move::Placement target);
+Queue find(Board board, move::Placement destination, bool force_20);
 
-void expand(const path::Node& node, Board& board, Map& map, const move::Placement& target, path::Node& best);
+void expand(Board board, Node& node, std::vector<Node>& queue, Map& map_queue);
 
-constexpr std::string input_to_str(Input input)
-{
-    switch (input)
-    {
-    case Input::NONE:
-        return " ";
-        break;
-    case Input::RIGHT:
-        return "RIGHT";
-        break;
-    case Input::LEFT:
-        return "LEFT";
-        break;
-    case Input::CW:
-        return "CW";
-        break;
-    case Input::CCW:
-        return "CCW";
-        break;
-    case Input::DOWN:
-        return "DOWN";
-        break;
-    case Input::DROP:
-        return "DROP";
-        break;
-    default:
-        break;
-    }
+void lock(Board board, Node& node, std::vector<Node>& locks, Map& map_locks);
 
-    return " ";
-};
+void add(Node& node, std::vector<Node>& queue, Map& map_queue);
 
-inline void print(std::vector<Input> inputs)
-{
-    for (auto& i : inputs) {
-        std::cout << input_to_str(i) << " ";
-    }
-
-    printf("\n");
-};
+int index(Node& node, std::vector<Node>& queue);
 
 };
