@@ -133,18 +133,18 @@ std::optional<Plan> Engine::request(i32 incomming_attack)
         }
     );
 
+    i32 heights[10];
+    this->state.board.get_heights(heights);
+    
+    i32 height_center_max = *std::max_element(heights + 3, heights + 7);
+
     size_t best_index = 0;
 
     for (size_t i = 0; i < beam_result.candidates.size(); ++i) {
         auto simulate_state = this->state;
         auto simulate_lock = simulate_state.advance(beam_result.candidates[i].placement, this->queue);
 
-        i32 heights[10];
-        simulate_state.board.get_heights(heights);
-        
-        i32 height_center_max = *std::max_element(heights + 3, heights + 7);
-
-        if (height_center_max + incomming_attack - simulate_lock.attack - simulate_lock.clear <= 20) {
+        if (height_center_max + incomming_attack - i32(simulate_lock.attack) - i32(simulate_lock.clear) <= 20) {
             best_index = i;
             break;
         }

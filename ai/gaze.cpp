@@ -36,7 +36,7 @@ bool is_tankable(Player self, move::Placement placement, i32 incomming)
     // If the incomming attack is too big
     i32 height_mid = *std::max_element(heights + 3, heights + 7);
 
-    if (height_mid + incomming >= 16) {
+    if (height_mid + incomming >= 14) {
         return false;
     }
 

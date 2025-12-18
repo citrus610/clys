@@ -178,9 +178,9 @@ Result search(
     }
 
     // Normalizes visit counts
-    for (auto& c : result.candidates) {
-        c.visit *= configs.branch;
-    }
+    // for (auto& c : result.candidates) {
+    //     c.visit *= configs.branch;
+    // }
 
     // Creates random queues
     auto bag = root.state.bag;

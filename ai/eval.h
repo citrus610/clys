@@ -24,7 +24,6 @@ struct Weight
     std::array<i32, 4> tslot;
     i32 bonus_b2b;
     i32 bonus_ren;
-    i32 scale;
 
     i32 pc;
     i32 pc_next;
@@ -44,6 +43,8 @@ void evaluate(node::Data& node, node::Data& parent, move::Placement placement, c
 std::pair<i32, i32> get_well(Board& board, i32 heights[10]);
 
 i32 get_bump(i32 heights[10], i32 well_x);
+
+i32 get_resource(Board& board, i32 height_min, i32 well);
 
 i32 get_transition(Board& board, i32 well_x);
 
@@ -78,7 +79,6 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Weight,
     tslot,
     bonus_b2b,
     bonus_ren,
-    scale,
     pc,
     pc_next,
     tspin,

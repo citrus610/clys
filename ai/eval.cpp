@@ -78,9 +78,6 @@ void evaluate(node::Data& node, node::Data& parent, move::Placement placement, c
         node.score.eval += (node.state.ren - 1) * w.bonus_ren;
     }
 
-    // Scale
-    node.score.eval = node.score.eval * w.scale / 1024;
-
     // Clear
     bool pc = node.state.board.is_empty();
 
@@ -205,6 +202,19 @@ i32 get_bump(i32 heights[10], i32 well_x)
     }
 
     return bump;
+};
+
+i32 get_resource(Board& board, i32 height_min, i32 well)
+{
+    i32 result = 0;
+
+    for (i32 i = 0; i < 10; ++i) {
+        result += std::popcount(board[i] >> height_min);
+    }
+
+    result -= well * 9;
+
+    return std::min(result, 48);
 };
 
 i32 get_transition(Board& board, i32 well_x)
