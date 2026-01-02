@@ -40,10 +40,8 @@ Player::Player()
     this->queue_index = 0;
     this->running = false;
 
-    this->attack_total = 0;
-    this->pc = 0;
-    this->tspin = 0;
-    this->tetris = 0;
+    this->attack = 0;
+    this->max_spike = 0;
     this->ren = {};
 };
 
@@ -60,13 +58,13 @@ void Player::init(eval::Weight w, std::vector<piece::Type> q)
     this->garbages = {};
     this->running = true;
 
-    this->attack_total = 0;
-    this->pc = 0;
-    this->tspin = 0;
-    this->tetris = 0;
+    this->attack = 0;
+    this->max_spike = 0;
     this->ren = {};
 
-    auto init_queue = { this->queue[0], this->queue[1], this->queue[2], this->queue[3], this->queue[4] };
+    auto init_queue = {
+        this->queue[0], this->queue[1], this->queue[2], this->queue[3], this->queue[4]
+    };
     this->queue_index = 5;
 
     this->sync.wait(this->delay.start);
@@ -92,55 +90,45 @@ void Player::update(Player* enemy)
 
     if (this->plan.has_value()) {
         // Advance state
-        auto state_previous = this->state;
         auto lock = this->state.advance(this->plan.value().placement, this->ai.queue);
         this->state.next = 0;
 
-        // Update log
-        if (lock.clear > 0) {
-            this->pc += this->state.board.is_empty();
+        // Update stats
+        i32 atk = lock.attack;
 
-            if (lock.tspin) {
-                this->tspin += lock.clear;
-            }
-
-            if (lock.clear == 4) {
-                this->tetris += 1;
-            }
-        }
-
-        if (state_previous.ren > this->state.ren && state_previous.ren > 1) {
-            this->ren.push_back(state_previous.ren - 1);
-        }
-
-        // Calculate attack
-        i32 attack = lock.attack;
-
-        this->attack_total += attack;
+        this->attack += atk;
 
         // Update garbage
-        while (attack > 0 && !this->garbages.empty())
+        while (atk > 0 && !this->garbages.empty())
         {
-            if (attack >= this->garbages[0].count) {
-                attack -= this->garbages[0].count;
+            if (atk >= this->garbages[0].count) {
+                atk -= this->garbages[0].count;
                 this->garbages.erase(this->garbages.begin());
                 continue;
             }
 
-            this->garbages[0].count -= attack;
-            attack = 0;
+            this->garbages[0].count -= atk;
+            atk = 0;
+        }
+
+        if (lock.clear > 0) {
+            this->ren.push_back(atk);
+        }
+        else if (!this->ren.empty()) {
+            this->max_spike = std::max(this->max_spike, std::accumulate(this->ren.begin(), this->ren.end(), 0));
+            this->ren.clear();
         }
 
         // Send attack
-        if (attack > 0) {
+        if (atk > 0) {
             if (enemy->garbages.empty()) {
                 enemy->garbages.push_back(battle::Garbage {
                     .frame = this->delay.garbage,
-                    .count = attack
+                    .count = atk
                 });
             }
             else {
-                enemy->garbages[0].count += attack;
+                enemy->garbages[0].count += atk;
             }
         }
 
@@ -238,6 +226,7 @@ void Player::update(Player* enemy)
 
 void Player::end()
 {
+    this->ai.request(0);
     this->ai.clear();
 };
 

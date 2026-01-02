@@ -7,9 +7,9 @@ class Layer
 public:
     std::unordered_map<u64, i32> map;
     std::vector<node::Data> data;
-    size_t width;
+    usize width;
 public:
-    Layer(size_t width);
+    Layer(usize width);
 public:
     void clear();
     void add(node::Data& node);

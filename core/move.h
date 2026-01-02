@@ -5,6 +5,8 @@
 namespace move
 {
 
+constexpr usize MAX = 128;
+
 constexpr i8 SRS_LUT[2][4][5][2] = {
     {
         {{ 0, 0 }, { -1, 0 }, { 2, 0 }, { -1, 0 }, { 2, 0 }},
@@ -38,9 +40,8 @@ public:
     piece::Rotation r;
     piece::Type type;
 public:
-    Placement() : x(0), y(0), r(piece::Rotation::UP), type(piece::Type::NONE) {};
+    Placement() : x(0), y(0), r(piece::Rotation::NONE), type(piece::Type::NONE) {};
     Placement(i8 x, i8 y, piece::Rotation r, piece::Type type) : x(x), y(y), r(r), type(type) {};
-    Placement(u16 hash);
 public:
     bool operator == (const Placement& other);
     bool operator != (const Placement& other);
@@ -50,7 +51,6 @@ public:
     bool is_above_stack(Board& board);
 public:
     Placement get_normalize();
-    u16 get_hash();
 public:
     void place(Board& board);
     void normalize();
@@ -82,9 +82,9 @@ void move_drop(Placement& piece, Map& collision);
 
 bool is_convex(const Board& board, const Map& map_collision);
 
-std::vector<Placement> generate(const Board& board, piece::Type type);
+arrayvec<Placement, MAX> generate(const Board& board, piece::Type type);
 
-void expand(const Placement& piece, Map& collision, Map& visited, Map& locked, std::vector<Placement>& result);
+void expand(const Placement& piece, Map& collision, Map& visited, Map& locked, arrayvec<Placement, MAX>& result);
 
 constexpr i8 get_srs_x(const piece::Type& piece, const piece::Rotation& r, i32 kick)
 {
@@ -120,11 +120,11 @@ inline void bench()
     auto bench = [&] (Board b) {
         const int count = 1000000;
 
-        for (int8_t t = 0; t < 7; ++t) {
-            int64_t time = 0;
-            int32_t c = 0;
+        for (i8 t = 0; t < 7; ++t) {
+            i64 time = 0;
+            i32 c = 0;
 
-            std::vector<int64_t> lists;
+            std::vector<i64> lists;
             lists.reserve(count);
 
             for (int i = 0; i < count; ++i) {
@@ -142,19 +142,25 @@ inline void bench()
             time = time / count;
             c = c / count;
 
-            uint64_t sd = 0;
-            uint64_t max = 0;
-            uint64_t min = UINT64_MAX;
+            u64 sd = 0;
+            u64 max = 0;
+            u64 min = UINT64_MAX;
 
             for (auto dt : lists) {
                 sd += (dt - time) * (dt - time);
-                max = std::max(max, uint64_t(dt));
-                min = std::min(min, uint64_t(dt));
+                max = std::max(max, u64(dt));
+                min = std::min(min, u64(dt));
             }
 
             sd = sd / count;
 
-            cout << "    piece: " << piece::to_char(piece::Type(t)) << "    time: " << time << " ns" << "    stdev: " << std::sqrt(sd) << "    min: " << min << " ns"  << "    max: " << max << " ns" << "    count: " << c << endl;
+            cout <<
+                "\tpiece: " << piece::get_char(piece::Type(t)) <<
+                "\ttime: " << time << " ns" <<
+                "\tstdev: " << std::sqrt(sd) <<
+                "\tmin: " << min << " ns" <<
+                "\tmax: " << max << " ns" <<
+                "\tcount: " << c << endl;
         }
     };
 
@@ -170,6 +176,7 @@ inline void bench()
     board[0] = 0b11111111;
 
     cout << "BOARD TSPIN" << endl;
+
     bench(board);
 
     board[9] = 0b111111111;
@@ -184,6 +191,7 @@ inline void bench()
     board[0] = 0b011111111;
 
     cout << "BOARD DT CANNON" << endl;
+
     bench(board);
     
     board[9] = 0b000011111111;
@@ -198,6 +206,7 @@ inline void bench()
     board[0] = 0b111111111100;
 
     cout << "BOARD TERRIBLE" << endl;
+
     bench(board);
 
     board[9] = 0b00000;
@@ -212,6 +221,7 @@ inline void bench()
     board[0] = 0b11111;
 
     cout << "BOARD CONVEX" << endl;
+    
     bench(board);
 };
 

@@ -5,12 +5,10 @@
 #include "board.h"
 #include "move.h"
 
-#include "../lib/xxh/xxh3.h"
+#include "../lib/rapidhash/rapidhash.h"
 
-// Ren combo table
 constexpr i32 REN_LUT[] = { 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5 };
 
-// Lock data after placing a piece
 struct Lock
 {
     u8 clear = 0;
@@ -19,7 +17,6 @@ struct Lock
     bool softdrop = false;
 };
 
-// Tetris game state
 class State
 {
 public:

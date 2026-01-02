@@ -8,15 +8,15 @@ namespace beam
 
 struct Configs
 {
-    size_t width = 500;
-    size_t depth = 32;
-    size_t branch = 3;
+    usize width = 500;
+    usize depth = 32;
+    usize branch = 3;
 };
 
 struct Candidate
 {
     move::Placement placement = move::Placement();
-    size_t visit = 0;
+    usize visit = 0;
 };
 
 struct Result
@@ -50,7 +50,7 @@ Result search(
     std::atomic_flag& running
 );
 
-std::vector<piece::Type> get_queue_random(Bag bag, size_t count);
+std::vector<piece::Type> get_queue_random(Bag bag, usize count);
 
 bool is_queue_valid(const std::vector<piece::Type>& queue, Bag bag);
 

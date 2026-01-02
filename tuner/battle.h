@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ai/ai.h"
+#include <random>
 
 namespace battle
 {
@@ -19,7 +20,7 @@ inline std::vector<piece::Type> generate_queue()
         piece::Type::Z
     };
 
-    auto rng = std::default_random_engine { (unsigned int)rand() };
+    auto rng = std::default_random_engine{ (unsigned int)rand() };
 
     for (i32 i = 0; i < 256; i++) {
         auto full_cp = full;
@@ -72,24 +73,13 @@ struct Result
 {
     bool win = false;
     i32 attack = 0;
-    i32 pc = 0;
-    i32 tspin = 0;
-    i32 tetris = 0;
-    i32 ren_6 = 0;
-    i32 ren_8 = 0;
-    i32 ren_10 = 0;
-    i32 ren_12 = 0;
+    i32 max_spike = 0;
 };
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Result,
+    win,
     attack,
-    pc,
-    tspin,
-    tetris,
-    ren_6,
-    ren_8,
-    ren_10,
-    ren_12
+    max_spike
 )
 
 class Sync
@@ -120,10 +110,8 @@ public:
     i32 queue_index = 0;
     bool running;
 public:
-    i32 attack_total;
-    i32 pc;
-    i32 tspin;
-    i32 tetris;
+    i32 attack;
+    i32 max_spike;
     std::vector<i32> ren;
 public:
     Player();
@@ -143,6 +131,59 @@ public:
     void init(eval::Weight w1, eval::Weight w2, std::vector<piece::Type> q1, std::vector<piece::Type> q2);
     void update();
     void end();
+};
+
+inline std::tuple<Result, Result, i32> do_battle(eval::Weight w_p1, eval::Weight w_p2, std::vector<piece::Type> q_p1, std::vector<piece::Type> q_p2, i32 iter)
+{
+    battle::Game game;
+    game.init(w_p1, w_p2, q_p1, q_p2);
+
+    i32 frame = 0;
+
+    battle::Result r1 = battle::Result();
+    battle::Result r2 = battle::Result();
+
+    while (true)
+    {
+        game.update();
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        frame += 1;
+        printf("\rframe: %d/%d                   ", frame, iter);
+
+        if (game.players[0].is_dead() || game.players[1].is_dead() || frame >= iter) {
+            if (!game.players[0].ren.empty()) {
+                i32 spike = std::accumulate(game.players[0].ren.begin(), game.players[0].ren.end(), 0);
+
+                game.players[0].max_spike = std::max(game.players[0].max_spike, spike);
+            }
+
+            if (!game.players[1].ren.empty()) {
+                i32 spike = std::accumulate(game.players[1].ren.begin(), game.players[1].ren.end(), 0);
+                
+                game.players[1].max_spike = std::max(game.players[1].max_spike, spike);
+            }
+
+            r1 = battle::Result {
+                .win = game.players[1].is_dead(),
+                .attack = game.players[0].attack,
+                .max_spike = game.players[0].max_spike
+            };
+
+            r2 = battle::Result {
+                .win = game.players[0].is_dead(),
+                .attack = game.players[1].attack,
+                .max_spike = game.players[1].max_spike
+            };
+
+            break;
+        }
+    };
+
+    game.end();
+
+    return { r1, r2, std::max(1, frame) };
 };
 
 };

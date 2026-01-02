@@ -8,11 +8,13 @@ u32 expand(
     std::vector<piece::Type>& queue,
     node::Data& node,
     std::function<void(node::Data&, move::Placement)> callback
-)
-{
+) {
     u32 nodes = 0;
 
-    piece::Type pieces[2] = { queue[node.state.next], node.state.hold };
+    piece::Type pieces[2] = {
+        queue[node.state.next],
+        node.state.hold
+    };
 
     if (pieces[1] == piece::Type::NONE) {
         pieces[1] = queue[node.state.next + 1];
@@ -51,8 +53,7 @@ i32 think(
     Layer& children,
     const eval::Weight& w,
     u32& nodes
-)
-{
+) {
     // Sorts the parents layer
     parents.sort();
 
@@ -105,8 +106,7 @@ Result search(
     eval::Weight w,
     Configs configs,
     std::atomic_flag& running
-)
-{
+) {
     auto result = Result();
 
     // Checks queue
@@ -156,7 +156,7 @@ Result search(
     // Searches the input queue
     result.depth = 1;
 
-    for (size_t i = 0; i < queue.size() - 1 - (root.state.hold == piece::Type::NONE); ++i) {
+    for (usize i = 0; i < queue.size() - 1 - (root.state.hold == piece::Type::NONE); ++i) {
         i32 index = beam::think(
             queue,
             result.candidates,
@@ -178,9 +178,9 @@ Result search(
     }
 
     // Normalizes visit counts
-    // for (auto& c : result.candidates) {
-    //     c.visit *= configs.branch;
-    // }
+    for (auto& c : result.candidates) {
+        c.visit *= configs.branch;
+    }
 
     // Creates random queues
     auto bag = root.state.bag;
@@ -191,7 +191,7 @@ Result search(
 
     std::vector<std::vector<piece::Type>> future_queues;
 
-    for (size_t i = 0; i < configs.branch; ++i) {
+    for (usize i = 0; i < configs.branch; ++i) {
         auto random_queue = beam::get_queue_random(bag, configs.depth);
         random_queue.insert(random_queue.begin(), queue.begin(), queue.end());
         future_queues.push_back(random_queue);
@@ -200,7 +200,7 @@ Result search(
     // Initializes future layers stack
     std::vector<std::array<Layer, 2>> future_layers;
         
-    for (size_t i = 0; i < configs.branch; ++i) {
+    for (usize i = 0; i < configs.branch; ++i) {
         future_layers.push_back({
             Layer(configs.width),
             Layer(configs.width)
@@ -211,7 +211,7 @@ Result search(
 
     std::vector<i32> future_indices;
 
-    for (size_t i = 0; i < configs.branch; ++i) {
+    for (usize i = 0; i < configs.branch; ++i) {
         future_indices.push_back(-1);
     }
 
@@ -219,7 +219,7 @@ Result search(
     while (running.test() && result.depth < configs.depth)
     {
         // For every branch, we do 1 cycle of beam search
-        for (size_t i = 0; i < configs.branch; ++i) {
+        for (usize i = 0; i < configs.branch; ++i) {
             if (future_indices[i] != -1) {
                 // If all the children of this branch come from the same ancestor, we don't have to expand nodes manually
                 // Instead, we can just increase that ancestor's visit count accordingly
@@ -244,7 +244,7 @@ Result search(
 };
 
 // Returns a possible random queue according to the 7-bag system
-std::vector<piece::Type> get_queue_random(Bag bag, size_t count)
+std::vector<piece::Type> get_queue_random(Bag bag, usize count)
 {
     std::vector<piece::Type> result;
 
@@ -260,8 +260,8 @@ std::vector<piece::Type> get_queue_random(Bag bag, size_t count)
         }
 
         // Shuffle the next queue
-        for (size_t i = 0; i < next.size(); ++i) {
-            size_t k = size_t(rand()) % next.size();
+        for (usize i = 0; i < next.size(); ++i) {
+            usize k = usize(rand()) % next.size();
             std::swap(next[i], next[k]);
         }
 

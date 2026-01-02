@@ -7,7 +7,7 @@ namespace node
 
 struct Score
 {
-    i32 action = 0;
+    i32 reward = 0;
     i32 eval = 0;
 };
 
@@ -21,7 +21,7 @@ struct Data
 
 inline bool operator < (const Score& a, const Score& b)
 {
-    return a.action + a.eval < b.action + b.eval;
+    return a.reward + a.eval < b.reward + b.eval;
 };
 
 inline bool operator < (const node::Data& a, const node::Data& b)

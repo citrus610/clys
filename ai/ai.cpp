@@ -133,14 +133,12 @@ std::optional<Plan> Engine::request(i32 incomming_attack)
         }
     );
 
-    i32 heights[10];
-    this->state.board.get_heights(heights);
-    
-    i32 height_center_max = *std::max_element(heights + 3, heights + 7);
+    usize best_index = 0;
 
-    size_t best_index = 0;
+    auto heights = this->state.board.get_heights();
+    auto height_center_max = *std::max_element(heights.begin() + 3, heights.begin() + 7);
 
-    for (size_t i = 0; i < beam_result.candidates.size(); ++i) {
+    for (usize i = 0; i < beam_result.candidates.size(); ++i) {
         auto simulate_state = this->state;
         auto simulate_lock = simulate_state.advance(beam_result.candidates[i].placement, this->queue);
 
@@ -150,10 +148,12 @@ std::optional<Plan> Engine::request(i32 incomming_attack)
         }
     }
 
+    auto best = beam_result.candidates[best_index];
+
     return Plan {
-        .placement = beam_result.candidates[best_index].placement,
+        .placement = best.placement,
         .root = this->state,
-        .eval = u32(beam_result.candidates[best_index].visit),
+        .eval = 0,
         .nodes = beam_result.nodes,
         .depth = beam_result.depth
     };

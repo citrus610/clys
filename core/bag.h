@@ -2,7 +2,6 @@
 
 #include "piece.h"
 
-// Tetris bag for the 7-bag rule
 class Bag
 {
 public:
@@ -13,9 +12,9 @@ public:
     bool get(const piece::Type& piece);
 public:
     void update(const piece::Type& next);
-    void deupdate(const piece::Type& next);
+    void revert(const piece::Type& last);
 public:
-    i32 get_size();
+    i32 get_count();
 public:
     void print();
 };

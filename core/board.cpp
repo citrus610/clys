@@ -1,15 +1,16 @@
 #include "board.h"
 
-u64& Board::operator [] (i32 index)
+u64& Board::operator [] (usize index)
 {
-    assert(index > -1 && index < 10);
-    return this->cols[index];
+    assert(index < 10);
+
+    return this->data[index];
 };
 
 bool Board::operator == (Board& other)
 {
     for (i32 i = 0; i < 10; ++i) {
-        if (this->cols[i] != other.cols[i]) {
+        if (this->data[i] != other.data[i]) {
             return false;
         }
     }
@@ -22,19 +23,12 @@ bool Board::operator != (Board& other)
     return !(*this == other);
 };
 
-void Board::get_heights(i32 heights[10])
+std::array<i32, 10> Board::get_heights()
 {
+    std::array<i32, 10> result;
+
     for (i32 i = 0; i < 10; ++i) {
-        heights[i] = 64 - std::countl_zero(this->cols[i]);
-    }
-};
-
-u64 Board::get_clear_mask()
-{
-    u64 result = this->cols[0];
-
-    for (i32 i = 1; i < 10; ++i) {
-        result &= this->cols[i];
+        result[i] = 64 - std::countl_zero(this->data[i]);
     }
 
     return result;
@@ -45,7 +39,7 @@ i32 Board::get_count()
     i32 result = 0;
 
     for (i32 i = 0; i < 10; ++i) {
-        result += std::popcount(this->cols[i]);
+        result += std::popcount(this->data[i]);
     }
 
     return result;
@@ -54,7 +48,7 @@ i32 Board::get_count()
 bool Board::is_empty()
 {
     for (i32 i = 0; i < 10; ++i) {
-        if (this->cols[i] != 0) {
+        if (this->data[i] != 0) {
             return false;
         }
     }
@@ -68,58 +62,63 @@ bool Board::is_occupied(i8 x, i8 y)
         return true;
     }
 
-    return (this->cols[x] >> y) & 1;
+    return (this->data[x] >> y) & 1;
 };
 
-i32 Board::clear()
+i32 Board::clear_lines()
 {
-    u64 mask = this->get_clear_mask();
+    u64 mask = this->data[0];
+
+    for (i32 i = 1; i < 10; ++i) {
+        mask &= this->data[i];
+    }
     
     if (mask == 0) {
         return 0;
     }
 
 #ifdef PEXT
-    for (int i = 0; i < 10; ++i) {
+    for (i32 i = 0; i < 10; ++i) {
         this->cols[i] = _pext_u64(this->cols[i], ~mask);
     }
 #else
-    int mask_tzcnt = std::countr_zero(mask);
-    mask = mask >> mask_tzcnt;
+    i32 shift = std::countr_zero(mask);
 
-    for (int i = 0; i < 10; ++i) {
-        u64 low_part = this->cols[i] & ((1ULL << mask_tzcnt) - 1);
-        u64 high_part = this->cols[i] >> mask_tzcnt;
+    mask = mask >> shift;
+
+    for (i32 i = 0; i < 10; ++i) {
+        u64 lo = this->data[i] & ((1ULL << shift) - 1);
+        u64 hi = this->data[i] >> shift;
 
         switch (mask)
         {
         case 0b0001:
-            high_part = high_part >> 1;
+            hi = hi >> 1;
             break;
         case 0b0011:
-            high_part = high_part >> 2;
+            hi = hi >> 2;
             break;
         case 0b0111:
-            high_part = high_part >> 3;
+            hi = hi >> 3;
             break;
         case 0b1111:
-            high_part = high_part >> 4;
+            hi = hi >> 4;
             break;
         case 0b0101:
-            high_part = ((high_part >> 1) & 0b0001) | ((high_part >> 3) << 1);
+            hi = ((hi >> 1) & 0b0001) | ((hi >> 3) << 1);
             break;
         case 0b1001:
-            high_part = ((high_part >> 1) & 0b0011) | ((high_part >> 4) << 2);
+            hi = ((hi >> 1) & 0b0011) | ((hi >> 4) << 2);
             break;
         case 0b1011:
-            high_part = ((high_part >> 2) & 0b0001) | ((high_part >> 4) << 1);
+            hi = ((hi >> 2) & 0b0001) | ((hi >> 4) << 1);
             break;
         case 0b1101:
-            high_part = ((high_part >> 1) & 0b0001) | ((high_part >> 4) << 1);
+            hi = ((hi >> 1) & 0b0001) | ((hi >> 4) << 1);
             break;
         }
 
-        this->cols[i] = low_part | (high_part << mask_tzcnt);
+        this->data[i] = lo | (hi << shift);
     }
 #endif
 
@@ -128,21 +127,18 @@ i32 Board::clear()
 
 void Board::print()
 {
-    using namespace std;
-
-    for (int y = 0; y < 25; y++) {
-        for (int x = 0; x < 10; x++) {
-            char cell = '.';
-
-            if (this->is_occupied(int8_t(x), int8_t(24 - y))) {
-                cell = '#';
+    for (i8 y = 0; y < 25; y++) {
+        for (i8 x = 0; x < 10; x++) {
+            if (this->is_occupied(x, 24 - y)) {
+                std::cout << '#';
             }
-
-            cout << cell;
+            else {
+                std::cout << '.';
+            }
         }
 
-        cout << "\n";
+        std::cout << "\n";
     }
     
-    cout << endl;
+    std::cout << std::endl;
 };

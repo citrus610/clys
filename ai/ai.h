@@ -1,8 +1,11 @@
 #pragma once
 
+#include <thread>
+#include <atomic>
+#include <mutex>
+
 #include "beam.h"
 #include "path.h"
-#include "gaze.h"
 
 namespace ai
 {
@@ -11,7 +14,7 @@ struct Plan
 {
     move::Placement placement = move::Placement();
     State root = State();
-    u32 eval = 0;
+    i32 eval = 0;
     u32 nodes = 0;
     u32 depth = 0;
 };

@@ -3,14 +3,6 @@
 namespace move
 {
 
-Placement::Placement(u16 hash)
-{
-    this->x = hash & 0b1111;
-    this->y = (hash >> 4) & 0b111111;
-    this->r = piece::Rotation((hash >> 10) & 0b11);
-    this->type = piece::Type((hash >> 12) & 0b1111);
-};
-
 bool Placement::operator == (const Placement& other)
 {
     return
@@ -45,13 +37,40 @@ bool Placement::is_tspin(Board& board)
         switch (this->r)
         {
         case piece::Rotation::UP:
-            return board.is_occupied(this->x + 1, this->y + 1) && board.is_occupied(this->x - 1, this->y + 1) && (board.is_occupied(this->x + 1, this->y - 1) || board.is_occupied(this->x - 1, this->y - 1));
+            return
+                board.is_occupied(this->x + 1, this->y + 1) &&
+                board.is_occupied(this->x - 1, this->y + 1) &&
+                (
+                    board.is_occupied(this->x + 1, this->y - 1) ||
+                    board.is_occupied(this->x - 1, this->y - 1)
+                );
         case piece::Rotation::RIGHT:
-            return board.is_occupied(this->x + 1, this->y + 1) && (board.is_occupied(this->x + 1, this->y - 1) + board.is_occupied(this->x - 1, this->y - 1) + board.is_occupied(this->x - 1, this->y + 1) >= 2);
+            return
+                board.is_occupied(this->x + 1, this->y + 1) &&
+                (
+                    board.is_occupied(this->x + 1, this->y - 1) +
+                    board.is_occupied(this->x - 1, this->y - 1) +
+                    board.is_occupied(this->x - 1, this->y + 1) >= 2
+                );
         case piece::Rotation::DOWN:
-            return board.is_occupied(this->x - 1, this->y - 1) && board.is_occupied(this->x + 1, this->y - 1) && (board.is_occupied(this->x - 1, this->y + 1) || board.is_occupied(this->x + 1, this->y + 1));
+            return
+                board.is_occupied(this->x - 1, this->y - 1) &&
+                board.is_occupied(this->x + 1, this->y - 1) &&
+                (
+                    board.is_occupied(this->x - 1, this->y + 1) ||
+                    board.is_occupied(this->x + 1, this->y + 1)
+                );
         case piece::Rotation::LEFT:
-            return board.is_occupied(this->x - 1, this->y + 1) && (board.is_occupied(this->x - 1, this->y - 1) + board.is_occupied(this->x + 1, this->y - 1) + board.is_occupied(this->x + 1, this->y + 1) >= 2);
+            return
+                board.is_occupied(this->x - 1, this->y + 1) &&
+                (
+                    board.is_occupied(this->x - 1, this->y - 1) +
+                    board.is_occupied(this->x + 1, this->y - 1) +
+                    board.is_occupied(this->x + 1, this->y + 1) >= 2
+                );
+        default:
+            assert(false);
+            break;
         }
     }
 
@@ -80,18 +99,6 @@ Placement Placement::get_normalize()
     return piece;
 };
 
-u16 Placement::get_hash()
-{
-    u16 hash = 0;
-
-    hash |= this->x & 0b1111;
-    hash |= (this->y & 0b111111) << 4;
-    hash |= (static_cast<u16>(this->r) & 0b11) << 10;
-    hash |= (static_cast<u16>(this->type) & 0b1111) << 12;
-
-    return hash;
-};
-
 void Placement::place(Board& board)
 {
     for (int i = 0; i < 4; ++i) {
@@ -115,11 +122,11 @@ void Placement::normalize()
             break;
         case piece::Rotation::DOWN:
             this->r = piece::Rotation::UP;
-            --this->x;
+            this->x -= 1;
             break;
         case piece::Rotation::LEFT:
             this->r = piece::Rotation::RIGHT;
-            ++this->y;
+            this->y += 1;
             break;
         default:
             break;
@@ -134,11 +141,11 @@ void Placement::normalize()
             break;
         case piece::Rotation::DOWN:
             this->r = piece::Rotation::UP;
-            --this->y;
+            this->y -= 1;
             break;
         case piece::Rotation::LEFT:
             this->r = piece::Rotation::RIGHT;
-            --this->x;
+            this->x -= 1;
             break;
         default:
             break;
@@ -153,11 +160,11 @@ void Placement::normalize()
             break;
         case piece::Rotation::DOWN:
             this->r = piece::Rotation::UP;
-            --this->y;
+            this->y -= 1;
             break;
         case piece::Rotation::LEFT:
             this->r = piece::Rotation::RIGHT;
-            --this->x;
+            this->x -= 1;
             break;
         default:
             break;
@@ -170,7 +177,7 @@ void Placement::normalize()
 
 void Placement::print()
 {
-    printf("type: %c\n", piece::to_char(this->type));
+    printf("type: %c\n", piece::get_char(this->type));
     printf("x: %d\n", this->x);
     printf("y: %d\n", this->y);
     printf("r: %d\n", static_cast<u8>(this->r));
@@ -210,6 +217,7 @@ bool move_right(Placement& piece, Map& collision)
 {
     if (!collision.get(piece.x + 1, piece.y, piece.r)) {
         piece.x += 1;
+
         return true;
     }
 
@@ -220,6 +228,7 @@ bool move_left(Placement& piece, Map& collision)
 {
     if (!collision.get(piece.x - 1, piece.y, piece.r)) {
         piece.x -= 1;
+
         return true;
     }
 
@@ -228,62 +237,69 @@ bool move_left(Placement& piece, Map& collision)
 
 bool move_cw(Placement& piece, Map& collision)
 {
-    piece::Rotation new_r;
+    piece::Rotation next;
 
     switch (piece.r)
     {
     case piece::Rotation::UP:
-        new_r = piece::Rotation::RIGHT;
+        next = piece::Rotation::RIGHT;
         break;
     case piece::Rotation::RIGHT:
-        new_r = piece::Rotation::DOWN;
+        next = piece::Rotation::DOWN;
         break;
     case piece::Rotation::DOWN:
-        new_r = piece::Rotation::LEFT;
+        next = piece::Rotation::LEFT;
         break;
     case piece::Rotation::LEFT:
-        new_r = piece::Rotation::UP;
+        next = piece::Rotation::UP;
+        break;
+    default:
+        assert(false);
         break;
     }
 
-    return move::move_rotate(piece, new_r, collision);
+    return move::move_rotate(piece, next, collision);
 };
 
 bool move_ccw(Placement& piece, Map& collision)
 {
-    piece::Rotation new_r;
+    piece::Rotation next;
 
     switch (piece.r)
     {
     case piece::Rotation::UP:
-        new_r = piece::Rotation::LEFT;
+        next = piece::Rotation::LEFT;
         break;
     case piece::Rotation::LEFT:
-        new_r = piece::Rotation::DOWN;
+        next = piece::Rotation::DOWN;
         break;
     case piece::Rotation::DOWN:
-        new_r = piece::Rotation::RIGHT;
+        next = piece::Rotation::RIGHT;
         break;
     case piece::Rotation::RIGHT:
-        new_r = piece::Rotation::UP;
+        next = piece::Rotation::UP;
+        break;
+    default:
+        assert(false);
         break;
     }
 
-    return move::move_rotate(piece, new_r, collision);
+    return move::move_rotate(piece, next, collision);
 };
 
-bool move_rotate(Placement& piece, piece::Rotation new_r, Map& collision)
+bool move_rotate(Placement& piece, piece::Rotation next, Map& collision)
 {
     i8 srs_index = piece.type != piece::Type::I;
 
     for (i32 i = 0; i < 5; ++i) {
-        i8 offset_x = get_srs_x(srs_index, piece.r, i) - get_srs_x(srs_index, new_r, i);
-        i8 offset_y = get_srs_y(srs_index, piece.r, i) - get_srs_y(srs_index, new_r, i);
+        i8 offset_x = get_srs_x(srs_index, piece.r, i) - get_srs_x(srs_index, next, i);
+        i8 offset_y = get_srs_y(srs_index, piece.r, i) - get_srs_y(srs_index, next, i);
 
-        if (!collision.get(piece.x + offset_x, piece.y + offset_y, new_r)) {
+        if (!collision.get(piece.x + offset_x, piece.y + offset_y, next)) {
             piece.x += offset_x;
             piece.y += offset_y;
-            piece.r = new_r;
+            piece.r = next;
+
             return true;
         }
     }
@@ -298,14 +314,12 @@ void move_drop(Placement& piece, Map& collision)
     piece.y = 64 - std::countl_zero(col & ((1ULL << piece.y) - 1));
 };
 
-// Check if the board is convex
-// If the board is convex, we know that there are no tucks available
 bool is_convex(const Board& board, const Map& map_collision)
 {
     i32 height = 64;
 
     for (i32 i = 0; i < 10; ++i) {
-        height = std::min(height, 64 - std::countl_zero(board.cols[i]));
+        height = std::min(height, 64 - std::countl_zero(board.data[i]));
     }
 
     for (i32 r = 0; r < 4; ++r) {
@@ -321,11 +335,9 @@ bool is_convex(const Board& board, const Map& map_collision)
     return true;
 };
 
-// Move generation using depth first search
-std::vector<Placement> generate(const Board& board, piece::Type type)
+arrayvec<Placement, MAX> generate(const Board& board, piece::Type type)
 {
-    std::vector<Placement> result;
-    result.reserve(128);
+    arrayvec<Placement, MAX> result;
 
     auto locked = Map();
     auto visited = Map();
@@ -333,11 +345,10 @@ std::vector<Placement> generate(const Board& board, piece::Type type)
 
     // Check for fast mode
     // If the search board is low enough, we know that can reach any columns using hard drop
-    // This removes the need to simulate piece from the starting positions
     bool fast = true;
 
     for (i32 i = 0; i < 10; ++i) {
-        if (64 - std::countl_zero(board.cols[i]) > 16) {
+        if (64 - std::countl_zero(board.data[i]) > 16) {
             fast = false;
             break;
         }
@@ -353,7 +364,7 @@ std::vector<Placement> generate(const Board& board, piece::Type type)
                 u64 c = ~0ULL;
 
                 if (x + offset_x >= 0 && x + offset_x < 10) {
-                    c = board.cols[x + offset_x];
+                    c = board.data[x + offset_x];
 
                     if (offset_y < 0) {
                         c = ~((~c) << (-offset_y));
@@ -376,7 +387,7 @@ std::vector<Placement> generate(const Board& board, piece::Type type)
                     continue;
                 }
 
-                result.push_back(
+                result.add(
                     Placement(
                         x,
                         64 - std::countl_zero(collision.data[r][x]),
@@ -402,7 +413,6 @@ std::vector<Placement> generate(const Board& board, piece::Type type)
     if (fast) {
         // Populate the sky
         // Since we know that we can reach all columns above the stack, we set them as visited so that we don't have to check for them later
-        // This will make us miss mid-air tucks, but those are bad and rare enough anyway
         for (i8 r = 0; r < 4; ++r) {
             for (i8 x = 0; x < 10; ++x) {
                 visited.data[r][x] = ~((1ULL << (64 - std::countl_zero(collision.data[r][x]))) - 1);
@@ -452,7 +462,7 @@ std::vector<Placement> generate(const Board& board, piece::Type type)
     return result;
 };
 
-void expand(const Placement& piece, Map& collision, Map& visited, Map& locked, std::vector<Placement>& result)
+void expand(const Placement& piece, Map& collision, Map& visited, Map& locked, arrayvec<Placement, MAX>& result)
 {
     // Drop
     auto drop = piece;
@@ -465,12 +475,13 @@ void expand(const Placement& piece, Map& collision, Map& visited, Map& locked, s
         
         if (!locked.get(lock.x, lock.y, lock.r)) {
             locked.set(lock.x, lock.y, lock.r);
-            result.push_back(lock);
+            result.add(lock);
         }
     }
 
     if (drop.y != piece.y && !visited.get(drop.x, drop.y, drop.r)) {
         visited.set(drop.x, drop.y, drop.r);
+
         move::expand(drop, collision, visited, locked, result);
     }
 
@@ -479,6 +490,7 @@ void expand(const Placement& piece, Map& collision, Map& visited, Map& locked, s
 
     if (move::move_right(right, collision) && !visited.get(right.x, right.y, right.r)) {
         visited.set(right.x, right.y, right.r);
+
         move::expand(right, collision, visited, locked, result);
     }
 
@@ -487,6 +499,7 @@ void expand(const Placement& piece, Map& collision, Map& visited, Map& locked, s
 
     if (move::move_left(left, collision) && !visited.get(left.x, left.y, left.r)) {
         visited.set(left.x, left.y, left.r);
+
         move::expand(left, collision, visited, locked, result);
     }
 
@@ -499,6 +512,7 @@ void expand(const Placement& piece, Map& collision, Map& visited, Map& locked, s
 
     if (move::move_cw(cw, collision) && !visited.get(cw.x, cw.y, cw.r)) {
         visited.set(cw.x, cw.y, cw.r);
+
         move::expand(cw, collision, visited, locked, result);
     }
 
@@ -507,6 +521,7 @@ void expand(const Placement& piece, Map& collision, Map& visited, Map& locked, s
 
     if (move::move_ccw(ccw, collision) && !visited.get(ccw.x, ccw.y, ccw.r)) {
         visited.set(ccw.x, ccw.y, ccw.r);
+
         move::expand(ccw, collision, visited, locked, result);
     }
 };

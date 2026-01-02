@@ -24,7 +24,7 @@ struct Node
 public:
     move::Placement position;
     std::vector<Input> queue;
-    size_t time;
+    usize time;
 public:
     Node();
 public:

@@ -8,15 +8,13 @@ void evaluate(node::Data& node, node::Data& parent, move::Placement placement, c
     node.score.eval = 0;
 
     auto board = node.state.board;
-
-    i32 heights[10] = { 0 };
-    board.get_heights(heights);
+    auto heights = board.get_heights();
 
     // Pc next
     auto next = piece::Type::NONE;
 
     if (node.state.next >= queue.size()) {
-        if (node.state.bag.get_size() == 1) {
+        if (node.state.bag.get_count() == 1) {
             for (i32 i = 0; i < 7; ++i) {
                 if (node.state.bag.get(piece::Type(i))) {
                     next = piece::Type(i);
@@ -29,39 +27,37 @@ void evaluate(node::Data& node, node::Data& parent, move::Placement placement, c
         next = queue[node.state.next];
     }
 
-    node.score.eval += (eval::get_pc_next(board, heights, next) || eval::get_pc_next(board, heights, node.state.hold)) * w.pc;
+    if (eval::get_pc_next(board, heights, next) || eval::get_pc_next(board, heights, node.state.hold)) {
+        node.score.eval += w.pc_next;
+    }
 
     // T slot
-    i32 tslot[4] = { 0 };
-    i32 donation_depth = std::max(i32(node.state.hold == piece::Type::T) + i32(node.state.bag.get(piece::Type::T)), 1);
+    i32 donations = 0;
 
-    eval::get_donation(board, heights, donation_depth, tslot);
+    auto tslot = eval::get_donation(board, heights, 3, donations);
 
     for (i32 i = 0; i < 4; ++i) {
         node.score.eval += tslot[i] * w.tslot[i];
     }
 
     // Height
-    node.score.eval += *std::max_element(heights, heights + 10) * w.height;
-
-    for (i32 i = 0; i < 10; ++i) {
-        node.score.eval += heights[i] * w.height_map[i];
-    }
+    node.score.eval += *std::max_element(heights.begin(), heights.end()) * w.height;
 
     // Well
     auto [well, well_x] = eval::get_well(board, heights);
 
     node.score.eval += std::min(well, 4) * w.well;
-    node.score.eval += w.well_map[well_x];
 
     // Bump
     node.score.eval += eval::get_bump(heights, well_x) * w.bump;
 
-    // Transition
-    node.score.eval += eval::get_transition(board, well_x);
+    // Center
+    node.score.eval += eval::get_center(well_x) * w.center;
 
     // Hole
     auto [hole_a, hole_b] = eval::get_hole(board, heights, well_x);
+
+    hole_a -= tslot[0] + tslot[1] + tslot[2] + tslot[3] - donations;
 
     node.score.eval += hole_a * w.hole_a;
     node.score.eval += hole_b * w.hole_b;
@@ -79,84 +75,91 @@ void evaluate(node::Data& node, node::Data& parent, move::Placement placement, c
     }
 
     // Clear
-    bool pc = node.state.board.is_empty();
+    bool is_pc = node.state.board.is_empty();
 
     if (node.lock.clear > 0) {
-        if (pc) {
-            node.score.action += w.pc;
+        if (is_pc) {
+            node.score.reward += w.pc;
+        }
+        else if (node.lock.tspin) {
+            node.score.reward += w.tspin[node.lock.clear - 1];
         }
         else {
-            if (node.lock.tspin) {
-                node.score.action += w.tspin[node.lock.clear - 1];
-            }
-            else {
-                node.score.action += w.clear[node.lock.clear - 1];
-            }
+            node.score.reward += w.clear[node.lock.clear - 1];
         }
     }
 
     // B2b
     if (node.lock.clear > 0 && node.state.b2b > 1) {
-        node.score.action += w.b2b;
+        node.score.reward += w.b2b;
     }
 
     // Ren
-    if (!pc) {
+    if (!is_pc) {
         if (node.state.ren > 10) {
-            node.score.action += w.ren[4];
+            node.score.reward += w.ren[4];
         }
         else if (node.state.ren > 8) {
-            node.score.action += w.ren[3];
+            node.score.reward += w.ren[3];
         }
         else if (node.state.ren > 6) {
-            node.score.action += w.ren[2];
+            node.score.reward += w.ren[2];
         }
         else if (node.state.ren > 4) {
-            node.score.action += w.ren[1];
+            node.score.reward += w.ren[1];
         }
         else if (node.state.ren > 2) {
-            node.score.action += w.ren[0];
+            node.score.reward += w.ren[0];
         }
     }
 
     // Feed
-    if (parent.state.ren == 1 && node.lock.clear == 0 && !pc) {
-        node.score.action += w.feed;
+    if (parent.state.ren == 1 && node.lock.clear == 0 && !is_pc) {
+        node.score.reward += w.feed;
     }
 
-    // Order
-    const bool is_parent_b2b = parent.lock.clear > 0 && (parent.lock.tspin || parent.lock.clear == 4);
-    const bool is_b2b = node.lock.clear > 0 && (node.lock.tspin || node.lock.clear == 4);
+    // Check clear action type
+    bool is_bad_parent = parent.lock.clear > 0 && !(parent.lock.tspin || parent.lock.clear == 4);
+    bool is_good_child = node.lock.clear > 0 && (node.lock.tspin || node.lock.clear == 4 || is_pc);
 
-    if (!is_parent_b2b && is_b2b && node.state.ren < 6) {
-        node.score.action -= w.order;
+    // Order bad to good
+    if (is_bad_parent && is_good_child && node.state.ren < 6) {
+        node.score.reward += w.order_a;
+    }
+
+    // Order tetris to tspin
+    bool is_tetris_parent = parent.lock.clear == 4;
+    bool is_tspin_child = node.lock.clear > 0 && node.lock.tspin;
+
+    if (is_tetris_parent && is_tspin_child) {
+        node.score.reward += w.order_b;
     }
 
     // Delay
-    if (node.lock.softdrop && !(node.lock.tspin && node.lock.clear > 0) && !pc) {
-        node.score.action += std::max(20 - placement.y, 0) * w.delay;
+    if (node.lock.softdrop && !(node.lock.tspin && node.lock.clear > 0) && !is_pc) {
+        node.score.reward += std::max(20 - placement.y, 0) * w.delay;
     }
 
     if (placement.type != queue[parent.state.next]) {
-        node.score.action += w.delay;
+        node.score.reward += w.delay;
     }
 
-    if (node.lock.softdrop && pc) {
-        node.score.action += w.delay;
+    if (node.lock.softdrop && is_pc) {
+        node.score.reward += w.delay;
     }
 
     // Waste T
-    if (placement.type == piece::Type::T && !(node.lock.tspin && node.lock.clear > 0) && !pc) {
-        node.score.action += w.waste_T;
+    if (placement.type == piece::Type::T && !(node.lock.tspin && node.lock.clear > 0) && !is_pc) {
+        node.score.reward += w.waste_T;
     }
 
     // Waste I
-    if (placement.type == piece::Type::I && node.lock.clear < 4 && !pc) {
-        node.score.action += w.waste_I;
+    if (placement.type == piece::Type::I && node.lock.clear < 4 && !is_pc) {
+        node.score.reward += w.waste_I;
     }
 };
 
-std::pair<i32, i32> get_well(Board& board, i32 heights[10])
+std::pair<i32, i32> get_well(Board& board, std::array<i32, 10>& heights)
 {
     i32 x = 0;
 
@@ -181,7 +184,7 @@ std::pair<i32, i32> get_well(Board& board, i32 heights[10])
     return { std::countr_one(mask), x };
 };
 
-i32 get_bump(i32 heights[10], i32 well_x)
+i32 get_bump(std::array<i32, 10>& heights, i32 well_x)
 {
     i32 bump = 0;
     i32 left = 0;
@@ -204,34 +207,16 @@ i32 get_bump(i32 heights[10], i32 well_x)
     return bump;
 };
 
-i32 get_resource(Board& board, i32 height_min, i32 well)
+i32 get_center(i32 well_x)
 {
-    i32 result = 0;
-
-    for (i32 i = 0; i < 10; ++i) {
-        result += std::popcount(board[i] >> height_min);
+    if (well_x < 5) {
+        return 4 - well_x;
     }
-
-    result -= well * 9;
-
-    return std::min(result, 48);
+    
+    return well_x - 5;
 };
 
-i32 get_transition(Board& board, i32 well_x)
-{
-    i32 result = 0;
-
-    result += 64 - std::popcount(board[0]);
-    result += 64 - std::popcount(board[9]);
-
-    for (i32 i = 0; i < 9; ++i) {
-        result += std::popcount(board[i] ^ board[i + 1]);
-    }
-
-    return result;
-};
-
-std::pair<i32, i32> get_hole(Board& board, i32 heights[10], i32 well_x)
+std::pair<i32, i32> get_hole(Board& board, std::array<i32, 10>& heights, i32 well_x)
 {
     const i32 height_min = heights[well_x];
 
@@ -244,7 +229,7 @@ std::pair<i32, i32> get_hole(Board& board, i32 heights[10], i32 well_x)
     return { hole, height_min };
 };
 
-i32 get_cover(Board& board, i32 heights[10])
+i32 get_cover(Board& board, std::array<i32, 10>& heights)
 {
     i32 cover = 0;
 
@@ -263,7 +248,7 @@ i32 get_cover(Board& board, i32 heights[10])
     return cover;
 };
 
-move::Placement get_structure(Board& board, i32 heights[10])
+move::Placement get_structure(Board& board, std::array<i32, 10>& heights)
 {
     for (i32 x = 0; x < 8; ++x) {
         if (heights[x + 0] > heights[x + 1] && heights[x + 0] + 1 < heights[x + 2]) {
@@ -329,8 +314,11 @@ move::Placement get_structure(Board& board, i32 heights[10])
     return move::Placement();
 };
 
-void get_donation(Board& board, i32 heights[10], i32 depth, i32 tslot[4])
+std::array<i32, 4> get_donation(Board& board, std::array<i32, 10>& heights, i32 depth, i32& count)
 {
+    std::array<i32, 4> tslot = { 0 };
+    count = 0;
+
     for (i32 i = 0; i < depth; ++i) {
         auto copy = board;
         auto quiet = eval::get_structure(copy, heights);
@@ -341,21 +329,24 @@ void get_donation(Board& board, i32 heights[10], i32 depth, i32 tslot[4])
 
         quiet.place(copy);
 
-        i32 clear = copy.clear();
+        i32 clear = copy.clear_lines();
 
         tslot[clear] += 1;
 
         if (clear >= 2) {
             board = copy;
-            board.get_heights(heights);
+            heights = board.get_heights();
+            count += 1;
         }
         else {
             break;
         }
     }
+
+    return tslot;
 };
 
-bool get_pc_next(Board& board, i32 heights[10], piece::Type next)
+bool get_pc_next(Board& board, std::array<i32, 10>& heights, piece::Type next)
 {
     if (next == piece::Type::NONE) {
         return false;
@@ -459,140 +450,6 @@ bool get_pc_next(Board& board, i32 heights[10], piece::Type next)
     }
 
     return false;
-};
-
-i32 get_pc_able(Board& board, i32 heights[10])
-{
-    i32 count = board.get_count();
-
-    if (count % 2 != 0) {
-        return 0;
-    }
-
-    if (count == 0) {
-        return 2;
-    }
-
-    i32 height = *std::max_element(heights, heights + 10);
-    i32 empty = height * 10 - count;
-
-    if (empty % 4 != 0) {
-        height += 1;
-    }
-
-    const i32 MAX_PC_HEIGHT = 6;
-
-    while (height <= MAX_PC_HEIGHT)
-    {
-        bool split = eval::get_pc_split(board, height);
-        bool fillable = eval::get_pc_fillable(board, height);
-
-        if (split && fillable) {
-            break;
-        }
-
-        height += 2;
-    }
-
-    return std::clamp(height, 0, MAX_PC_HEIGHT);
-};
-
-bool get_pc_split(Board& board, i32 height)
-{
-    u64 mask = (1ULL << height) - 1;
-
-    i32 empty = 0;
-
-    for (i32 i = 0; i < 10; ++i) {
-        if (board[i] == mask) {
-            if (empty & 0b11) {
-                return false;
-            }
-        }
-
-        empty += height - std::popcount(board[i]);
-    }
-
-    return true;
-};
-
-bool get_pc_fillable(Board& board, i32 height)
-{
-    u64 mask = (1ULL << height) - 1;
-
-    for (i32 i = 0; i < 10; ++i) {
-        if (board[i] == mask) {
-            continue;
-        }
-
-        if (board[i] == 0 && height == 4) {
-            continue;
-        }
-
-        u64 hole = ~board[i] & mask;
-        u64 l = (i > 0) ? board[i - 1] : mask;
-        u64 r = (i < 9) ? board[i + 1] : mask;
-
-        if ((hole & l & r) == hole) {
-            return false;
-        }
-    }
-
-    return true;
-};
-
-bool get_pc_parity(Board& board, i32 need, i32 next, const std::vector<piece::Type>& queue, const piece::Type& hold)
-{
-    // Calculate vertical parity
-    i32 parity = 0;
-
-    for (i32 i = 0; i < 10; ++i) {
-        if (i & 1) {
-            parity += std::popcount(board[i]);
-        }
-        else {
-            parity -= std::popcount(board[i]);
-        }
-    }
-
-    parity = std::abs(parity) / 2;
-
-    // Calculate the maximum possible parity changed by pieces
-    i32 change_max = 0;
-
-    for (size_t i = next; i < std::min(queue.size(), size_t(need)); ++i) {
-        change_max += (queue[i] == piece::Type::J);
-        change_max += (queue[i] == piece::Type::L);
-        change_max += (queue[i] == piece::Type::T);
-        change_max += (queue[i] == piece::Type::I) * 2;
-    }
-
-    change_max += (hold == piece::Type::J);
-    change_max += (hold == piece::Type::L);
-    change_max += (hold == piece::Type::T);
-    change_max += (hold == piece::Type::I) * 2;
-
-    if (parity > change_max) {
-        return false;
-    }
-
-    // Non L, J pieces count
-    i32 non_lj = 0;
-
-    for (size_t i = next; i < std::min(queue.size(), size_t(need)); ++i) {
-        non_lj += (queue[i] != piece::Type::L) && (queue[i] != piece::Type::J);
-    }
-
-    non_lj += (hold != piece::Type::L) && (hold != piece::Type::J) && (hold != piece::Type::NONE);
-
-    // Must change parity
-    i32 must_change = need - std::min(non_lj, need);
-
-    if ((must_change == change_max) && (((parity ^ must_change) & 1) != 0)) {
-        return false;
-    }
-
-    return true;
 };
 
 };

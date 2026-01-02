@@ -64,8 +64,8 @@ bool Node::operator < (const Node& other) const
         return this->time > other.time;
     }
 
-    size_t down_a = 0;
-    size_t down_b = 0;
+    usize down_a = 0;
+    usize down_b = 0;
 
     for (auto& i : this->queue) {
         if (i == Input::DOWN) {
@@ -83,8 +83,8 @@ bool Node::operator < (const Node& other) const
         return down_a > down_b;
     }
 
-    size_t air_time_a = 0;
-    size_t air_time_b = 0;
+    usize air_time_a = 0;
+    usize air_time_b = 0;
 
     for (auto& i : this->queue) {
         if (i == Input::DOWN) {
@@ -107,8 +107,8 @@ bool Node::operator < (const Node& other) const
 
 bool Node::operator == (const Node& other) const
 {
-    size_t down_a = 0;
-    size_t down_b = 0;
+    usize down_a = 0;
+    usize down_b = 0;
 
     for (auto& i : this->queue) {
         if (i == Input::DOWN) {
@@ -122,8 +122,8 @@ bool Node::operator == (const Node& other) const
         }
     }
 
-    size_t air_time_a = 0;
-    size_t air_time_b = 0;
+    usize air_time_a = 0;
+    usize air_time_b = 0;
 
     for (auto& i : this->queue) {
         if (i == Input::DOWN) {
@@ -190,6 +190,9 @@ bool Node::move_cw(Board& board)
     case piece::Rotation::LEFT:
         r = piece::Rotation::UP;
         break;
+    default:
+        assert(false);
+        break;
     }
 
     return this->move_rotate(board, r);
@@ -212,6 +215,9 @@ bool Node::move_ccw(Board& board)
         break;
     case piece::Rotation::RIGHT:
         r = piece::Rotation::UP;
+        break;
+    default:
+        assert(false);
         break;
     }
 
